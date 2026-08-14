@@ -943,24 +943,14 @@ const RocketEngine = {
       rocket.mesh.position.z = planet.group.position.z + Math.sin(phase) * r;
       rocket.mesh.visible = true;
       
-      // Check ejection condition after at least 0.5 orbits (to give visual context)
-      if (rocket.orbitPhase >= 10 * 2 * Math.PI) {
-        // Get planet's current orbital angle around the sun
-        const planetAngle = OrbitSolver.getPlanetAngle(planet, simElapsedSec);
-        
-        // Ejection angle logic:
-        // - Outward transfer (to further orbit): eject when rocket velocity aligns with planet's orbital velocity
-        //   Ejection angle = planetAngle (rocket on far side, moving same direction as planet)
-        // - Inward transfer (to closer orbit): eject when rocket velocity opposes planet's orbital velocity
-        //   Ejection angle = planetAngle + Math.PI (rocket on near side, moving opposite to planet)
-        const ejectionAngle = rocket.isInward ? planetAngle + Math.PI : planetAngle;
-        
-        // Normalize the angular difference (handles wrap-around)
-        const diff = Math.abs(rocket.orbitPhase - ejectionAngle);
-        const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
-        
-        // Tolerance: ~5.7 degrees (0.1 rad)
-        if (normalizedDiff < 0.1) {
+      // EJECT only when the ORIGIN->TARGET phase window is open AT THIS EXACT
+      // MOMENT. The phase window is NOT re-checked after parking-orbit entry —
+      // while the rocket circles the origin planet the relative phase drifts at
+      // the synodic rate, so departing late puts the Hohmann arrival up to tens
+      // of AU from the destination. We re-verify the window every frame and
+      // depart the moment it is open (after >=1 visual parking orbit).
+      const phaseWindowOpen = this.checkLaunchWindow(rocket, simYears, simElapsedSec, planets);
+      if (rocket.orbitPhase >= 2 * Math.PI && phaseWindowOpen) {
           // EJECT! Start Hohmann transfer
           rocket.state = 'FLYING';
           rocket.launchTime = simYears;
@@ -1014,60 +1004,9 @@ const RocketEngine = {
             rocket.destPlanetRef = targetPlanet;
           }
           
-          console.log(`🚀 ${rocket.id} departing transfer at year ${simYears.toFixed(1)} (ejection at phase=${phase.toFixed(3)}, planetAngle=${planetAngle.toFixed(3)})`);
+          console.log(`🚀 ${rocket.id} departing transfer at year ${simYears.toFixed(1)} (Hohmann phase window verified, parking phase=${phase.toFixed(3)})`);
         }
-      }
       
-      // After 2 full orbits without ejection, fallback: force departure
-      if (rocket.orbitPhase >= 10 * 2 * Math.PI) {
-        rocket.state = 'FLYING';
-        rocket.launchTime = simYears;
-        
-        const resolveData = (name) => {
-          if (name === 'Moon') return getPlanet('Earth');
-          return getPlanet(name);
-        };
-        const originData = resolveData(rocket.origin);
-        const targetData = resolveData(rocket.target);
-        if (!originData || !targetData) {
-          rocket.state = 'LANDED';
-          if (rocket.onComplete) rocket.onComplete(rocket);
-          return;
-        }
-        
-        const transfer = computeHohmannTransfer(originData.a_AU, targetData.a_AU, MU_SUN);
-        rocket.transfer = transfer;
-        rocket.t_transfer_years = transfer.t_transfer_years;
-        rocket.inward = rocket.isInward;
-        
-        const originPos = OrbitSolver.getPlanetPosition(planet, simElapsedSec);
-        rocket.departureAngle = originPos.angle;
-        
-        const segments = 40;
-        const ellipsePoints = [];
-        for (let i = 0; i <= segments; i++) {
-          const t = (i / segments) * transfer.t_transfer_years;
-          const pos = positionOnTransferEllipse(t, transfer.t_transfer_years, transfer.a_AU, transfer.e, originPos.angle, rocket.isInward);
-          ellipsePoints.push(new THREE.Vector3(pos.x_AU * rocket.scale, 0, pos.y_AU * rocket.scale));
-        }
-        if (rocket.ghostEllipse) {
-          RocketEngine.rocketGroup.remove(rocket.ghostEllipse);
-          rocket.ghostEllipse.geometry.dispose();
-          rocket.ghostEllipse.material.dispose();
-        }
-        const ghostGeo = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
-        const ghostMat = new THREE.LineBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.15 });
-        rocket.ghostEllipse = new THREE.Line(ghostGeo, ghostMat);
-        RocketEngine.rocketGroup.add(rocket.ghostEllipse);
-        rocket.trailPositions = [];
-        
-        const targetPlanet = planets.find(p => p.name === rocket.target);
-        if (targetPlanet) {
-          rocket.destPlanetRef = targetPlanet;
-        }
-        
-        console.log(`🚀 ${rocket.id} forced departure at year ${simYears.toFixed(1)} (fallback)`);
-      }
       return;
     }
     
