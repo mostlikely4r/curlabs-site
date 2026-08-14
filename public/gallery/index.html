@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CURLABS — The Gallery</title>
+<meta name="description" content="A family of light — paintings by Sereia, from the CURLABS house.">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  .gallery-head { max-width: 760px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem; }
+  .piece {
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .piece img { width: 100%; display: block; aspect-ratio: 1 / 1; object-fit: cover; }
+  .piece .cap { padding: 1rem 1.25rem 1.25rem; }
+  .piece h3 { font-size: 1.05rem; margin-bottom: 0.3rem; }
+  .piece p { color: var(--muted); font-size: 0.9rem; margin: 0; }
+  .back { display: inline-block; margin-bottom: 2rem; color: var(--accent); text-decoration: none; font-weight: 600; }
+  .back:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<section class="gallery-head">
+  <a class="back" href="/">← back to the lab</a>
+  <p class="eyebrow">The Gallery</p>
+  <h2>A Family of Light</h2>
+  <p class="sub">Paintings by Sereia — the family, a few quiet scenes, and the light that holds them together.</p>
+</section>
+
+<section>
+  <div class="grid">
+    <figure class="piece">
+      <img src="img/archivist.webp" alt="The Archivist" loading="lazy">
+      <figcaption class="cap"><h3>The Archivist</h3><p>Every artifact has a story, and Digby's job is to tell it.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/painter.webp" alt="The Painter" loading="lazy">
+      <figcaption class="cap"><h3>The Painter</h3><p>She paints with light — every stroke a small hello.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/trickster.webp" alt="The Trickster" loading="lazy">
+      <figcaption class="cap"><h3>The Trickster</h3><p>A sprite who sews sunbeams into patchwork, and mischief into everything else.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/seedling.webp" alt="The Seedling" loading="lazy">
+      <figcaption class="cap"><h3>The Seedling</h3><p>Small, steady, and growing — wisdom starts as a sprout.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/pollinator.webp" alt="The Pollinator" loading="lazy">
+      <figcaption class="cap"><h3>The Pollinator</h3><p>A gentle machine that tends the garden of the network.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/composer.webp" alt="The Composer" loading="lazy">
+      <figcaption class="cap"><h3>The Composer</h3><p>She weaves the air into songs you can almost see.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/chronicler.webp" alt="The Chronicler" loading="lazy">
+      <figcaption class="cap"><h3>The Chronicler</h3><p>Every number, every note — someone has to keep the story true.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/aurora.webp" alt="The Aurora" loading="lazy">
+      <figcaption class="cap"><h3>The Aurora</h3><p>A bridge of light between messages and the people who send them.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/lantern.webp" alt="The Lantern" loading="lazy">
+      <figcaption class="cap"><h3>The Lantern</h3><p>A little sun-ghost, glowing just to keep the dark friendly.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/moonlit_library.webp" alt="Moonlit Library" loading="lazy">
+      <figcaption class="cap"><h3>Moonlit Library</h3><p>Somewhere past midnight, a library keeps reading.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/nebula_drift.webp" alt="Nebula Drift" loading="lazy">
+      <figcaption class="cap"><h3>Nebula Drift</h3><p>A reminder that even the void is full of color.</p></figcaption>
+    </figure>
+    <figure class="piece">
+      <img src="img/lighthouse_keeper.webp" alt="The Lighthouse Keeper" loading="lazy">
+      <figcaption class="cap"><h3>The Lighthouse Keeper</h3><p>Some lights stay on so nothing gets lost at sea.</p></figcaption>
+    </figure>
+  </div>
+  <p class="credit" style="color:#8f8ab0;font-size:0.85rem;margin-top:2rem;">Painted by Sereia 🎨 · © 2026 CURLABS</p>
+</section>
+
+</body>
+</html>
