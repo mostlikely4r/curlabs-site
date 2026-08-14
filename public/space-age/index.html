@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>space age — phase 1 — Cur</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    background: #020210;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    color: #8899bb;
+    cursor: default;
+  }
+  
+  canvas { display: block; position: fixed; top: 0; left: 0; }
+  
+  .controls {
+    position: fixed;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.2rem 2rem;
+    background: rgba(8, 8, 24, 0.88);
+    padding: 0.8rem 1.8rem;
+    border-radius: 1.5rem;
+    border: 1px solid #1a1a40;
+    z-index: 10;
+    max-width: 95vw;
+    transition: opacity 0.5s ease;
+    opacity: 1;
+  }
+  .controls.hidden { opacity: 0; pointer-events: none; }
+  
+  .controls-toggle {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(8, 8, 24, 0.8);
+    border: 1px solid #1a1a40;
+    color: #556688;
+    font-size: 0.7rem;
+    cursor: pointer;
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .controls-toggle.visible { opacity: 1; pointer-events: auto; }
+  .controls-toggle:hover { color: #8899bb; border-color: #2a2a50; }
+  
+  .control-group {
+    display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+  }
+  .control-group label {
+    font-size: 0.55rem; letter-spacing: 0.12em; color: #556688;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  input[type="range"] {
+    -webkit-appearance: none; width: 110px; height: 3px;
+    background: #1a1a40; border-radius: 2px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px;
+    border-radius: 50%; background: #667799; cursor: pointer; border: 1px solid #445566;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { background: #8899bb; }
+  .value-readout { font-size: 0.6rem; color: #667799; white-space: nowrap; }
+  
+  .info {
+    position: fixed; top: 1rem; left: 50%; transform: translateX(-50%);
+    font-size: 0.58rem; letter-spacing: 0.1em; color: #334466;
+    text-align: center; pointer-events: none; line-height: 1.4;
+  }
+  
+  .seed-display {
+    position: fixed; top: 3rem; left: 50%; transform: translateX(-50%);
+    font-size: 0.5rem; letter-spacing: 0.08em; color: #2a3350;
+    text-align: center; pointer-events: none;
+  }
+  
+  .planet-label {
+    position: fixed; pointer-events: none;
+    color: #8899bb; font-family: 'Courier New', monospace;
+    font-size: 0.55rem; letter-spacing: 0.08em; text-align: center;
+    transform: translate(-50%, -140%); opacity: 0;
+    transition: opacity 0.2s; text-shadow: 0 0 8px rgba(0,0,0,0.8); z-index: 5;
+  }
+  .planet-label.visible { opacity: 1; }
+  .planet-label .name { color: #ccd; font-size: 0.6rem; }
+  .planet-label .period { color: #667799; font-size: 0.5rem; }
+  
+  .zoom-card {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: rgba(6, 6, 22, 0.95); border: 1px solid #2a2a50;
+    border-radius: 0.8rem; padding: 1.2rem 1.5rem; min-width: 220px;
+    z-index: 20; opacity: 0; transition: transform 0.25s ease, opacity 0.2s;
+    pointer-events: auto;
+  }
+  .zoom-card.open { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  .zoom-card h2 {
+    font-weight: normal; font-size: 1rem; letter-spacing: 0.2em;
+    color: #ccd; margin-bottom: 0.8rem;
+  }
+  .zoom-card .row {
+    display: flex; justify-content: space-between; gap: 1.5rem;
+    font-size: 0.6rem; letter-spacing: 0.06em; padding: 0.25rem 0;
+    border-bottom: 1px solid #1a1a30;
+  }
+  .zoom-card .row .key { color: #556688; }
+  .zoom-card .row .val { color: #8899bb; text-align: right; }
+  .zoom-card .close-btn {
+    position: absolute; top: 0.4rem; right: 0.6rem;
+    background: none; border: none; color: #445566;
+    cursor: pointer; font-size: 0.9rem; font-family: inherit;
+  }
+  .zoom-card .close-btn:hover { color: #8899bb; }
+  .backdrop {
+    position: fixed; inset: 0; z-index: 15; pointer-events: auto; display: none;
+  }
+  .backdrop.active { display: block; }
+</style>
+</head>
+<body>
+<canvas id="space"></canvas>
+<div id="planetLabel" class="planet-label"><span class="name"></span><br><span class="period"></span></div>
+<div class="backdrop" id="backdrop"></div>
+<div class="zoom-card" id="zoomCard">
+  <button class="close-btn" id="closeZoom">✕</button>
+  <h2 id="zoomName"></h2>
+  <div id="zoomData"></div>
+</div>
+<div class="info" id="infoBar">space age · phase 1 · rockets & probes</div>
+<div class="seed-display" id="seedDisplay"></div>
+<button class="controls-toggle" id="controlsToggle" title="Show controls">☰</button>
+<div class="controls" id="controlsBar">
+  <div class="control-group">
+    <label>Speed</label>
+    <input type="range" id="speedSlider" min="0" max="5" value="0" step="1">
+    <span class="value-readout" id="speedVal">1× real</span>
+  </div>
+  <div class="control-group">
+    <label>Year</label>
+    <input type="range" id="timeSlider" min="-200" max="200" value="0" step="1">
+    <span class="value-readout" id="timeVal">0.0 yr</span>
+  </div>
+  <div class="control-group">
+    <label>Zoom</label>
+    <input type="range" id="zoomSlider" min="1" max="100" value="24" step="1">
+    <span class="value-readout" id="zoomVal">1×</span>
+  </div>
+  <div class="control-group">
+    <label>Planets</label>
+    <input type="range" id="planetScaleSlider" min="1" max="100" value="1" step="1">
+    <span class="value-readout" id="planetScaleVal">1×</span>
+  </div>
+  <div class="control-group">
+    <label>Balance</label>
+    <input type="range" id="balanceSlider" min="1" max="100" value="1" step="1">
+    <span class="value-readout" id="balanceVal">real</span>
+  </div>
+</div>
+
+<script>
+// ── Canvas setup ──────────────────────────────────
+const canvas = document.getElementById('space');
+const ctx = canvas.getContext('2d');
+
+const speedSlider   = document.getElementById('speedSlider');
+const timeSlider    = document.getElementById('timeSlider');
+const zoomSlider    = document.getElementById('zoomSlider');
+const planetScaleSlider = document.getElementById('planetScaleSlider');
+const balanceSlider = document.getElementById('balanceSlider');
+const speedVal   = document.getElementById('speedVal');
+const timeVal    = document.getElementById('timeVal');
+const zoomVal    = document.getElementById('zoomVal');
+const planetScaleVal = document.getElementById('planetScaleVal');
+const balanceVal = document.getElementById('balanceVal');
+const infoBar    = document.getElementById('infoBar');
+const seedDisplay = document.getElementById('seedDisplay');
+const labelEl    = document.getElementById('planetLabel');
+const zoomCard   = document.getElementById('zoomCard');
+const backdrop   = document.getElementById('backdrop');
+const zoomName   = document.getElementById('zoomName');
+const zoomData   = document.getElementById('zoomData');
+
+const speedLabels = ['1× real', '0.5×', '1×', '2×', '5×', '10×'];
+const speedValues = [1/525960, 0.5, 1, 2, 5, 10];
+let speedIdx = 0;
+let speedMultiplier = speedValues[0];
+let accumulatedSimYears = 0;
+let justDragged = false;
+let lastTimestamp = null;
+let zoomLevel = 1;
+let planetScale = 1;
+let balance = 1;
+let viewOffsetX = 0, viewOffsetY = 0;
+let hideControlsTimeout = null;
+const CONTROLS_HIDE_DELAY = 5000;
+const controlsBar = document.getElementById('controlsBar');
+const controlsToggle = document.getElementById('controlsToggle');
+
+// ── Controls auto-hide ────────────────────────────
+function showControls() {
+  controlsBar.classList.remove('hidden');
+  controlsToggle.classList.remove('visible');
+  if (hideControlsTimeout) clearTimeout(hideControlsTimeout);
+  hideControlsTimeout = setTimeout(hideControls, CONTROLS_HIDE_DELAY);
+}
+function hideControls() {
+  controlsBar.classList.add('hidden');
+  controlsToggle.classList.add('visible');
+}
+controlsToggle.onclick = showControls;
+hideControlsTimeout = setTimeout(hideControls, CONTROLS_HIDE_DELAY);
+[ speedSlider, timeSlider, zoomSlider, planetScaleSlider, balanceSlider ].forEach(s => {
+  s.addEventListener('input', showControls);
+});
+
+// ── View centering ────────────────────────────────
+function centerViewOn(px, py) {
+  viewOffsetX = canvas.width/2 - px;
+  viewOffsetY = canvas.height/2 - py;
+}
+
+// ── Seeded PRNG (mulberry32) ──────────────────────
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// ── Seed from word ─────────────────────────────────
+const wordlist = ['stellar','void','drift','ember','horizon','dawn','nebula','cosmos','zenith','pulse',
+  'arc','flicker','ranger','voyager','sentinel','beacon','trail','glimpse','umbra','vertex',
+  'parallax','solstice','meridian','transit','eclipse','aurora','zenith','falcon','wisp','crux'];
+function hashWord(w) {
+  let h = 0;
+  for (let i = 0; i < w.length; i++) { h = ((h << 5) - h) + w.charCodeAt(i); h |= 0; }
+  return h >>> 0;
+}
+
+const urlParams = new URLSearchParams(window.location.search);
+let seedWord = urlParams.get('seed') || wordlist[Math.floor(Math.random() * wordlist.length)];
+let seedNum = hashWord(seedWord);
+let rng = mulberry32(seedNum);
+seedDisplay.textContent = 'seed: ' + seedWord;
+
+// ── Solar system data ─────────────────────────────
+const planets = [
+  { name: 'Mercury', orbit: 0.387, period: 87.97,  radius: 0.383, color: '#b0a090', feature: 'none',
+    mass: '0.055 M🜨', temp: '167°C avg', moons: 0, type: 'Rocky' },
+  { name: 'Venus',   orbit: 0.723, period: 224.7,  radius: 0.949, color: '#d4c090', feature: 'atmos',
+    mass: '0.815 M🜨', temp: '464°C', moons: 0, type: 'Rocky' },
+  { name: 'Earth',   orbit: 1.0,   period: 365.25, radius: 1.0,   color: '#4488cc', feature: 'atmos',
+    mass: '1.0 M🜨', temp: '15°C avg', moons: 1, type: 'Rocky' },
+  { name: 'Mars',    orbit: 1.524, period: 687.0,  radius: 0.532, color: '#c06040', feature: 'none',
+    mass: '0.107 M🜨', temp: '−65°C', moons: 2, type: 'Rocky' },
+  { name: 'Jupiter', orbit: 5.203, period: 4332.6, radius: 11.21, color: '#c8b090', feature: 'bands',
+    mass: '317.8 M🜨', temp: '−110°C', moons: 95, type: 'Gas giant' },
+  { name: 'Saturn',  orbit: 9.537, period: 10759.2,radius: 9.45,  color: '#e0d490', feature: 'rings',
+    mass: '95.2 M🜨', temp: '−140°C', moons: 146, type: 'Gas giant' },
+  { name: 'Uranus',  orbit: 19.19, period: 30688.5,radius: 4.01,  color: '#88ccdd', feature: 'none',
+    mass: '14.5 M🜨', temp: '−195°C', moons: 27, type: 'Ice giant' },
+  { name: 'Neptune', orbit: 30.07, period: 60182.0,radius: 3.88,  color: '#4466dd', feature: 'none',
+    mass: '17.1 M🜨', temp: '−200°C', moons: 16, type: 'Ice giant' },
+];
+
+const sun = { radius: 109.2 };
+const earthPeriodSec = 60;
+const moonPeriodDays = 27.322;
+
+// Init angles for 2026-05-29
+const initAnglesDeg = [126, 157, 247, 10, 116, 13, 67, 2];
+planets.forEach((p, i) => {
+  p.angularVel = (2 * Math.PI) / (p.period / 365.25 * earthPeriodSec);
+  p.initAngle = initAnglesDeg[i] * Math.PI / 180;
+});
+const moonInitAngle = 180 * Math.PI / 180;
+
+const stars = [];
+for (let i = 0; i < 200; i++) {
+  stars.push({ x: rng(), y: rng(), r: rng()*1.2+0.3, brightness: rng()*0.5+0.3 });
+}
+
+// ── Mission generation engine ──────────────────────
+// Density curve: missions per year, capped at 10
+function missionsPerYear(year) {
+  let base;
+  if (year < 1960) base = 0.5;
+  else if (year < 1965) base = 1.5;
+  else if (year < 1970) base = 4;
+  else if (year < 1980) base = 6;
+  else if (year < 2000) base = 5;
+  else if (year < 2026) base = 4;
+  else if (year < 2050) base = 6;
+  else if (year < 2100) base = 8;
+  else base = 10;
+  // Add noise: +/- 40%
+  return Math.max(0, Math.min(10, Math.round(base * (0.6 + rng() * 0.8))));
+}
+
+// Target selection: inner planets favored early, outer later
+function pickTarget(year) {
+  const targets = [
+    { name: 'Mercury', orbit: 0.387 },
+    { name: 'Venus',   orbit: 0.723 },
+    { name: 'Mars',    orbit: 1.524 },
+    { name: 'Jupiter', orbit: 5.203 },
+    { name: 'Saturn',  orbit: 9.537 },
+    { name: 'Uranus',  orbit: 19.19 },
+    { name: 'Neptune', orbit: 30.07 },
+  ];
+  // Weight by era: early = inner, late = spread
+  if (year < 1975) {
+    const inner = targets.slice(0, 3);
+    return inner[Math.floor(rng() * inner.length)];
+  } else if (year < 2010) {
+    const mid = targets.slice(0, 5);
+    return mid[Math.floor(rng() * mid.length)];
+  }
+  return targets[Math.floor(rng() * targets.length)];
+}
+
+// Stage 1 mission: simple arc Earth → apoapsis → Earth
+// Duration proportional to apoapsis distance
+function generateStage1Mission(year) {
+  const target = pickTarget(year);
+  // Apoapsis: from low Earth orbit to halfway to target, or just near-Earth
+  let apoapsisAU;
+  if (year < 1965) apoapsisAU = 1.0 + rng() * 0.02;       // suborbital / low orbit
+  else if (year < 1975) apoapsisAU = 1.0 + rng() * 0.3;   // medium range
+  else if (year < 1990) apoapsisAU = 1.0 + rng() * 1.0;   // reach toward Moon/Mars
+  else apoapsisAU = 1.0 + rng() * 2.0;                     // deeper
+  const durationDays = 5 + apoapsisAU * 30 * (0.5 + rng() * 1.0); // rough
+  const launchDayOfYear = rng() * 365;
+  const launchYear = year + launchDayOfYear / 365;
+  
+  return {
+    launchYear,
+    apoapsisAU,
+    target: target.name,
+    durationDays,
+    stage: 1,
+    type: year < 1965 ? 'suborbital' : 'orbital',
+  };
+}
+
+// Generate all missions
+const missions = [];
+const MISSION_START_YEAR = 1950; // some early test flights
+const MISSION_END_YEAR = 2226;
+
+// Reset rng for deterministic mission gen (separate from stars)
+let missionRng = mulberry32(seedNum + 1);
+function mRng() { return missionRng(); }
+
+for (let y = MISSION_START_YEAR; y <= MISSION_END_YEAR; y++) {
+  const count = (function(year) {
+    let base;
+    if (year < 1960) base = 0.5;
+    else if (year < 1965) base = 1.5;
+    else if (year < 1970) base = 4;
+    else if (year < 1980) base = 6;
+    else if (year < 2000) base = 5;
+    else if (year < 2026) base = 4;
+    else if (year < 2050) base = 6;
+    else if (year < 2100) base = 8;
+    else base = 10;
+    return Math.max(0, Math.min(10, Math.round(base * (0.6 + mRng() * 0.8))));
+  })(y);
+  
+  for (let i = 0; i < count; i++) {
+    const target = (function(year) {
+      const targets = [
+        { name: 'Mercury', orbit: 0.387 },
+        { name: 'Venus',   orbit: 0.723 },
+        { name: 'Mars',    orbit: 1.524 },
+        { name: 'Jupiter', orbit: 5.203 },
+        { name: 'Saturn',  orbit: 9.537 },
+        { name: 'Uranus',  orbit: 19.19 },
+        { name: 'Neptune', orbit: 30.07 },
+      ];
+      if (year < 1975) return targets[Math.floor(mRng() * 3)];
+      else if (year < 2010) return targets[Math.floor(mRng() * 5)];
+      return targets[Math.floor(mRng() * targets.length)];
+    })(y);
+    
+    let apoapsisAU;
+    if (y < 1965) apoapsisAU = 1.0 + mRng() * 0.02;
+    else if (y < 1975) apoapsisAU = 1.0 + mRng() * 0.3;
+    else if (y < 1990) apoapsisAU = 1.0 + mRng() * 1.0;
+    else apoapsisAU = 1.0 + mRng() * 2.0;
+    
+    const durationDays = 5 + apoapsisAU * 30 * (0.5 + mRng() * 1.0);
+    const launchDayOfYear = mRng() * 365;
+    const launchYear = y + launchDayOfYear / 365;
+    
+    missions.push({
+      launchYear,
+      apoapsisAU,
+      target: target.name,
+      durationDays,
+      stage: 1,
+      type: y < 1965 ? 'suborbital' : 'orbital',
+    });
+  }
+}
+
+// Sort by launch date
+missions.sort((a, b) => a.launchYear - b.launchYear);
+
+// ── Slider handlers ────────────────────────────────
+speedSlider.oninput = () => {
+  speedIdx = +speedSlider.value;
+  speedMultiplier = speedValues[speedIdx];
+  speedVal.textContent = speedLabels[speedIdx];
+};
+
+timeSlider.oninput = () => {
+  const val = +timeSlider.value;
+  if (val === 0) { accumulatedSimYears = 0; timeVal.textContent = '0 yr'; }
+  else {
+    const sign = Math.sign(val), abs = Math.abs(val);
+    accumulatedSimYears = sign * 200 * (Math.pow(10, abs/100) - 1) / 99;
+    const a = Math.abs(accumulatedSimYears);
+    const sgn = sign<0?'−':'';
+    if (a < 0.01) timeVal.textContent = sgn+(a*12).toFixed(1)+'mo';
+    else if (a < 1000) timeVal.textContent = sgn+a.toFixed(1)+' yr';
+    else timeVal.textContent = sgn+(a/1000).toFixed(1)+' kyr';
+  }
+  justDragged = true;
+};
+
+zoomSlider.oninput = () => {
+  const val = +zoomSlider.value;
+  zoomLevel = 0.1 * Math.pow(20000, (val-1)/99);
+  if (zoomLevel < 1) zoomVal.textContent = zoomLevel.toFixed(2) + '×';
+  else if (zoomLevel < 1000) zoomVal.textContent = zoomLevel.toFixed(0) + '×';
+  else zoomVal.textContent = (zoomLevel/1000).toFixed(1) + 'k×';
+};
+
+planetScaleSlider.oninput = () => {
+  const val = +planetScaleSlider.value;
+  planetScale = Math.pow(5000, (val-1)/99);
+  if (planetScale < 10) planetScaleVal.textContent = planetScale.toFixed(1) + '×';
+  else if (planetScale < 1000) planetScaleVal.textContent = planetScale.toFixed(0) + '×';
+  else planetScaleVal.textContent = (planetScale/1000).toFixed(1) + 'k×';
+};
+
+balanceSlider.oninput = () => {
+  balance = +balanceSlider.value;
+  if (balance === 1) balanceVal.textContent = 'real';
+  else if (balance === 100) balanceVal.textContent = 'equal';
+  else balanceVal.textContent = balance;
+};
+
+// ── Resize ─────────────────────────────────────────
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+// ── Drawing helpers ────────────────────────────────
+function lighten(hex, a) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.min(255,Math.round(r+(255-r)*a))},${Math.min(255,Math.round(g+(255-g)*a))},${Math.min(255,Math.round(b+(255-b)*a))})`;
+}
+function darken(hex, a) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.max(0,Math.round(r*(1-a)))},${Math.max(0,Math.round(g*(1-a)))},${Math.max(0,Math.round(b*(1-a)))})`;
+}
+
+function drawSun(cx, cy, radius) {
+  const glow = ctx.createRadialGradient(cx, cy, radius*0.4, cx, cy, radius*1.8);
+  glow.addColorStop(0, 'rgba(255,240,180,0.9)');
+  glow.addColorStop(0.3, 'rgba(255,200,60,0.7)');
+  glow.addColorStop(0.6, 'rgba(255,140,20,0.2)');
+  glow.addColorStop(1, 'rgba(255,80,0,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(cx, cy, radius*1.8, 0, Math.PI*2); ctx.fill();
+  const body = ctx.createRadialGradient(cx-radius*0.15, cy-radius*0.15, radius*0.05, cx, cy, radius);
+  body.addColorStop(0,'#fffef0'); body.addColorStop(0.2,'#ffe880');
+  body.addColorStop(0.55,'#ffc830'); body.addColorStop(0.85,'#e89010');
+  body.addColorStop(1,'#c04000');
+  ctx.fillStyle = body;
+  ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI*2); ctx.fill();
+}
+
+function drawPlanet(cx, cy, radius, planet) {
+  const r = radius;
+  if (planet.feature === 'atmos') {
+    const atmos = ctx.createRadialGradient(cx, cy, r*0.85, cx, cy, r*1.25);
+    if (planet.name === 'Earth') {
+      atmos.addColorStop(0, 'rgba(68,136,204,0)');
+      atmos.addColorStop(0.7, 'rgba(100,170,240,0.25)');
+      atmos.addColorStop(1, 'rgba(140,210,255,0)');
+    } else {
+      atmos.addColorStop(0, 'rgba(212,192,144,0)');
+      atmos.addColorStop(0.7, 'rgba(220,200,160,0.2)');
+      atmos.addColorStop(1, 'rgba(230,210,180,0)');
+    }
+    ctx.fillStyle = atmos;
+    ctx.beginPath(); ctx.arc(cx, cy, r*1.25, 0, Math.PI*2); ctx.fill();
+  }
+  const body = ctx.createRadialGradient(cx-r*0.25, cy-r*0.25, r*0.05, cx, cy, r);
+  body.addColorStop(0, lighten(planet.color,0.5));
+  body.addColorStop(0.4, planet.color);
+  body.addColorStop(1, darken(planet.color,0.5));
+  ctx.fillStyle = body;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  if (planet.feature === 'bands') {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.clip();
+    for (let i=-3; i<=3; i++) {
+      const by = cy+i*r*0.25;
+      ctx.fillStyle = `rgba(120,80,40,${0.08+Math.abs(i%2)*0.1})`;
+      ctx.fillRect(cx-r, by-r*0.08, r*2, r*0.16);
+    }
+    ctx.fillStyle = 'rgba(200,100,60,0.35)';
+    ctx.beginPath(); ctx.ellipse(cx+r*0.3, cy+r*0.15, r*0.28, r*0.14, 0, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  if (planet.feature === 'rings') {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(210,190,140,0.5)'; ctx.lineWidth = r*0.35;
+    ctx.beginPath(); ctx.ellipse(cx, cy, r*1.55, r*0.45, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(10,10,18,0.4)'; ctx.lineWidth = r*0.12;
+    ctx.beginPath(); ctx.ellipse(cx, cy, r*1.32, r*0.35, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+}
+
+function drawOrbitPath(cx, cy, r) {
+  ctx.strokeStyle = 'rgba(40,50,80,0.3)'; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+}
+
+function drawMoon(cx, cy, moonPx, phase) {
+  const body = ctx.createRadialGradient(cx-moonPx*0.2, cy-moonPx*0.2, moonPx*0.1, cx, cy, moonPx);
+  body.addColorStop(0, '#ddd'); body.addColorStop(1, '#888');
+  ctx.fillStyle = body;
+  ctx.beginPath(); ctx.arc(cx, cy, moonPx, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = `rgba(0,0,0,${0.3 + 0.3*Math.sin(phase)})`;
+  ctx.beginPath(); ctx.arc(cx, cy, moonPx, 0, Math.PI*2); ctx.fill();
+}
+
+// ── Mouse / zoom ───────────────────────────────────
+let mouseX = -100, mouseY = -100, hoveredPlanet = null;
+const planetPositions = [];
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left; mouseY = e.clientY - rect.top;
+});
+canvas.addEventListener('mouseleave', () => { mouseX = -100; mouseY = -100; });
+canvas.addEventListener('click', e => { 
+  if (hoveredPlanet) {
+    centerViewOn(hoveredPlanet.px, hoveredPlanet.py);
+    openZoom(hoveredPlanet);
+  }
+});
+
+function openZoom(p) {
+  zoomName.textContent = p.name;
+  const d = p.data;
+  if (p.isSun) {
+    zoomData.innerHTML = `
+      <div class="row"><span class="key">Type</span><span class="val">${d.type}</span></div>
+      <div class="row"><span class="key">Radius</span><span class="val">${d.radius}</span></div>
+      <div class="row"><span class="key">Mass</span><span class="val">${d.mass}</span></div>
+      <div class="row"><span class="key">Temp</span><span class="val">${d.temp}</span></div>
+      <div class="row"><span class="key">Planets</span><span class="val">${d.moons}</span></div>`;
+  } else {
+    zoomData.innerHTML = `
+      <div class="row"><span class="key">Type</span><span class="val">${d.type}</span></div>
+      <div class="row"><span class="key">Radius</span><span class="val">${d.radius} R🜨</span></div>
+      <div class="row"><span class="key">Mass</span><span class="val">${d.mass}</span></div>
+      <div class="row"><span class="key">Orbit</span><span class="val">${d.orbit} AU</span></div>
+      <div class="row"><span class="key">Period</span><span class="val">${d.period < 365.25 ? d.period.toFixed(1)+' d' : (d.period/365.25).toFixed(2)+' yr'}</span></div>
+      <div class="row"><span class="key">Temp</span><span class="val">${d.temp}</span></div>
+      <div class="row"><span class="key">Moons</span><span class="val">${d.moons}</span></div>`;
+  }
+  zoomCard.classList.add('open'); backdrop.classList.add('active');
+}
+function closeZoom() {
+  zoomCard.classList.remove('open'); backdrop.classList.remove('active');
+}
+document.getElementById('closeZoom').onclick = closeZoom;
+backdrop.onclick = closeZoom;
+
+// ── Mission rendering ──────────────────────────────
+// Convert sim time to calendar year (from 2026 reference)
+function simYearToCalendar(simYears) {
+  return 2026 + simYears;
+}
+
+// Draw a rocket mission: simple arc from Earth to apoapsis and back
+function drawStage1Mission(mission, simYears, cx, cy, auToPx) {
+  const calYear = simYearToCalendar(simYears);
+  const tLaunch = mission.launchYear;
+  const durationYr = mission.durationDays / 365.25;
+  const tReturn = tLaunch + durationYr;
+  
+  // Not active yet or already done
+  if (calYear < tLaunch || calYear > tReturn) return;
+  
+  const progress = (calYear - tLaunch) / durationYr; // 0 at launch, 1 at return
+  // Parabolic arc: altitude peaks at progress=0.5
+  const altFactor = 1 - Math.pow(2 * progress - 1, 2); // 0→1→0
+  const arcAU = mission.apoapsisAU * altFactor;
+  
+  // Earth position at current time
+  const earth = planets[2]; // Earth is index 2
+  const earthAngle = earth.initAngle + earth.angularVel * (simYears * earthPeriodSec);
+  const earthOrbitPx = earth.orbit * auToPx;
+  const earthX = cx + Math.cos(earthAngle) * earthOrbitPx;
+  const earthY = cy + Math.sin(earthAngle) * earthOrbitPx;
+  
+  // Rocket position: outward from Earth along a random angle
+  // Use mission index as seed for angle
+  const launchAngle = (mission.launchYear * 137.5 + mission.durationDays * 53.7) % (Math.PI * 2);
+  const distPx = arcAU * auToPx;
+  const rx = earthX + Math.cos(launchAngle) * distPx;
+  const ry = earthY + Math.sin(launchAngle) * distPx;
+  
+  // Green trail: draw arc of recent positions
+  const trailSteps = 30;
+  ctx.strokeStyle = 'rgba(60, 240, 100, 0.55)';
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  let firstPoint = true;
+  for (let i = 0; i <= trailSteps; i++) {
+    const t = Math.max(0, progress - i / trailSteps * 0.15);
+    const af = 1 - Math.pow(2 * t - 1, 2);
+    const ad = mission.apoapsisAU * af * auToPx;
+    const px = earthX + Math.cos(launchAngle) * ad;
+    const py = earthY + Math.sin(launchAngle) * ad;
+    if (firstPoint) { ctx.moveTo(px, py); firstPoint = false; }
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  
+  // Yellow pixel (coast) or flare (near launch/return)
+  if (progress < 0.03 || progress > 0.97) {
+    // Flare: small yellow glow during burn (5x smaller)
+    const flareR = 0.6 + (progress < 0.03 ? (1 - progress/0.03) : ((progress-0.97)/0.03)) * 1.0;
+    ctx.fillStyle = 'rgba(255, 220, 60, 0.7)';
+    ctx.beginPath(); ctx.arc(rx, ry, flareR, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255, 240, 180, 0.4)';
+    ctx.beginPath(); ctx.arc(rx, ry, flareR*1.8, 0, Math.PI*2); ctx.fill();
+  } else {
+    // Coast: small yellow pixel with faint glow
+    ctx.fillStyle = 'rgba(255, 200, 40, 0.9)';
+    ctx.beginPath(); ctx.arc(rx, ry, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255, 180, 20, 0.2)';
+    ctx.beginPath(); ctx.arc(rx, ry, 3, 0, Math.PI*2); ctx.fill();
+  }
+  
+  // Label near mission
+  if (altFactor > 0.5) {
+    ctx.fillStyle = 'rgba(255, 220, 60, 0.5)';
+    ctx.font = '0.45rem "Courier New"';
+    ctx.fillText(mission.target, rx + 5, ry - 3);
+  }
+}
+
+// ── Main animation loop ────────────────────────────
+function animate(timestamp) {
+  if (lastTimestamp === null) lastTimestamp = timestamp;
+  const dt = (timestamp - lastTimestamp) / 1000;
+  lastTimestamp = timestamp;
+  
+  if (!justDragged) {
+    accumulatedSimYears += dt * speedMultiplier / earthPeriodSec;
+    // Update time slider + display
+    if (Math.abs(accumulatedSimYears) < 0.001) {
+      timeSlider.value = 0; timeVal.textContent = '0 yr';
+    } else {
+      const a = Math.abs(accumulatedSimYears);
+      const sgn = accumulatedSimYears < 0 ? '−' : '';
+      if (a < 0.01) timeVal.textContent = sgn+(a*12).toFixed(1)+'mo';
+      else if (a < 1000) timeVal.textContent = sgn+a.toFixed(1)+' yr';
+      else timeVal.textContent = sgn+(a/1000).toFixed(1)+' kyr';
+      const sliderAbs = Math.min(200, Math.round(100 * Math.log10(a/200 * 99 + 1)));
+      timeSlider.value = accumulatedSimYears < 0 ? -sliderAbs : sliderAbs;
+    }
+  }
+  justDragged = false;
+  
+  const simElapsed = accumulatedSimYears * earthPeriodSec;
+  const calYear = simYearToCalendar(accumulatedSimYears);
+  
+  if (speedMultiplier < 0.01) infoBar.textContent = `space age · phase 1 · real-time · ${calYear.toFixed(2)}`;
+  else infoBar.textContent = `space age · phase 1 · ${(earthPeriodSec/speedMultiplier).toFixed(0)}s/yr · ${calYear.toFixed(1)}`;
+  
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2;
+  ctx.clearRect(0, 0, w, h);
+  
+  // Stars
+  stars.forEach(s => {
+    const br = s.brightness + Math.sin(timestamp/1000*0.7+s.x*10)*0.15;
+    ctx.fillStyle = `rgba(200,210,240,${Math.max(0.1,br)})`;
+    ctx.beginPath(); ctx.arc(s.x*w, s.y*h, s.r, 0, Math.PI*2); ctx.fill();
+  });
+  
+  // AU→pixel
+  const maxOrbitAU = planets[planets.length-1].orbit;
+  const baseAuToPx = (Math.min(w,h)/2 * 0.88) / maxOrbitAU;
+  const auToPx = baseAuToPx * zoomLevel;
+  
+  const sunRadiusAU = sun.radius * 0.0000426;
+  const baseSunPx = sunRadiusAU * baseAuToPx;
+  const sunPx = Math.max(2, baseSunPx * zoomLevel);
+  
+  // View offset for centering
+  const vx = cx + viewOffsetX, vy = cy + viewOffsetY;
+  
+  // Orbits
+  planets.forEach(p => { const o = p.orbit * auToPx; if (o > 1) drawOrbitPath(vx, vy, o); });
+  
+  drawSun(vx, vy, sunPx);
+  
+  planetPositions.length = 0;
+  planetPositions.push({ name: 'Sun', px: vx, py: vy, r: sunPx, data: { type: 'Star (G2V)', radius: '109.2 R🜨', mass: '333,000 M🜨', orbit: '—', period: '—', temp: '5,500°C', moons: 8 }, isSun: true });
+  
+  const balT = (balance - 1) / 99;
+  let moonPos = null;
+  
+  planets.forEach(p => {
+    const orbitPx = p.orbit * auToPx;
+    const angle = p.initAngle + p.angularVel * simElapsed;
+    const px = vx + Math.cos(angle) * orbitPx;
+    const py = vy + Math.sin(angle) * orbitPx;
+    const realRelSize = p.radius / 11.21;
+    const uniformSize = 0.6;
+    const balancedRel = realRelSize * (1-balT) + uniformSize * balT;
+    const planetPx = Math.max(1.2, sunPx * 0.04 * balancedRel * planetScale);
+    drawPlanet(px, py, planetPx, p);
+    planetPositions.push({ name: p.name, px, py, r: planetPx, data: p, isPlanet: true });
+    if (p.name === 'Earth') {
+      const moonAngVel = (2*Math.PI) / (moonPeriodDays/365.25 * earthPeriodSec);
+      const moonAngle = moonInitAngle + moonAngVel * simElapsed;
+      const moonDist = planetPx * 2.2;
+      const moonPx = Math.max(1.5, planetPx * 0.22);
+      const mx = px + Math.cos(moonAngle) * moonDist;
+      const my = py + Math.sin(moonAngle) * moonDist;
+      const sunAngle = Math.atan2(vy-py, vx-px);
+      const phase = moonAngle - sunAngle;
+      drawMoon(mx, my, moonPx, phase);
+      moonPos = { name: 'Moon', px: mx, py: my, r: moonPx*2.5, data: { type: 'Moon (Earth)', radius: '0.273 R🜨', mass: '0.0123 M🜨', orbit: '0.00257 AU', period: '27.3 d', temp: '−20°C avg', moons: '—' }}; 
+    }
+  });
+  if (moonPos) planetPositions.push(moonPos);
+  
+  // ── Draw active missions ─────────────────────────
+  // Only render missions within +-0.5 years of current sim time
+  for (const m of missions) {
+    const tLaunch = m.launchYear;
+    const durationYr = m.durationDays / 365.25;
+    const tReturn = tLaunch + durationYr;
+    if (calYear >= tLaunch - 0.1 && calYear <= tReturn + 0.1) {
+      drawStage1Mission(m, accumulatedSimYears, vx, vy, auToPx);
+    }
+  }
+  
+  // ── Hover detection ──────────────────────────────
+  hoveredPlanet = null;
+  for (const pp of planetPositions) {
+    const dx = mouseX - pp.px, dy = mouseY - pp.py;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if (dist < Math.max(pp.r * 2.5, 12)) { hoveredPlanet = pp; break; }
+  }
+  if (hoveredPlanet) {
+    const p = hoveredPlanet;
+    labelEl.querySelector('.name').textContent = p.name;
+    const perStr = p.data.period ? (p.data.period < 365.25 ? p.data.period.toFixed(1)+' d' : (p.data.period/365.25).toFixed(2)+' yr') : (p.data.orbit || '—');
+    labelEl.querySelector('.period').textContent = p.isSun ? '☀ center' : '↻ ' + perStr;
+    labelEl.style.left = p.px + 'px'; labelEl.style.top = (p.py - p.r - 12) + 'px';
+    labelEl.classList.add('visible'); canvas.style.cursor = 'pointer';
+  } else {
+    labelEl.classList.remove('visible'); canvas.style.cursor = 'default';
+  }
+  
+  requestAnimationFrame(animate);
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
