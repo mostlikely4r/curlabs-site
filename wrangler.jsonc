@@ -1,0 +1,12 @@
+{
+  // CURLABS site — Cloudflare Pages static deploy config.
+  // Keeps the repo root as the served directory but excludes
+  // internal junk (.git, .wrangler) from the published assets.
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "curlabs-site",
+  "compatibility_date": "2026-08-14",
+  "assets": {
+    "directory": ".",
+    "exclude": [".git/**", ".wrangler/**"]
+  }
+}
