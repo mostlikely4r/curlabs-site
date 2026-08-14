@@ -1,0 +1,1957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar System — Chisel</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    background: #000; 
+    overflow: hidden; 
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #fff;
+    user-select: none;
+  }
+  canvas { display: block; }
+
+  #ui {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 40px;
+    align-items: center;
+    background: rgba(10,10,30,0.75);
+    backdrop-filter: blur(12px);
+    padding: 16px 32px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    z-index: 10;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+  @media (max-width: 700px) {
+    #ui { flex-direction: column; gap: 12px; padding: 12px 20px; bottom: 16px; width: 90%; }
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .control-group label {
+    font-size: 12px;
+    opacity: 0.7;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    text-transform: uppercase;
+    min-width: 50px;
+  }
+  .control-group input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 120px;
+    height: 4px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .control-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #6af;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid rgba(255,255,255,0.3);
+    transition: 0.15s;
+  }
+  .control-group input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    background: #8cf;
+  }
+  .control-group input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: #6af;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.3);
+    cursor: pointer;
+  }
+  .value {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 38px;
+    text-align: center;
+    color: #8cf;
+  }
+
+  #info-panel {
+    position: fixed;
+    top: 30px;
+    right: 30px;
+    background: rgba(10,10,30,0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 20px 24px;
+    min-width: 180px;
+    max-width: 260px;
+    z-index: 10;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  #info-panel.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  #info-panel h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #fff;
+  }
+  #info-panel .fact {
+    font-size: 14px;
+    opacity: 0.8;
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+  #info-panel .hint {
+    font-size: 11px;
+    opacity: 0.4;
+    margin-top: 10px;
+    letter-spacing: 0.3px;
+  }
+  #info-panel .close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.4);
+    font-size: 18px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  #info-panel .close:hover { color: #fff; }
+
+  #title {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    opacity: 0.25;
+    z-index: 5;
+    font-weight: 300;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="title">✦ Solar System — Chisel</div>
+
+<div id="info-panel">
+  <button class="close" id="close-info">&times;</button>
+  <h2 id="planet-name"></h2>
+  <div class="fact" id="planet-fact"></div>
+  <div class="hint">click another planet</div>
+</div>
+
+<div id="selected-info" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);color:white;font-family:sans-serif;font-size:14px;background:rgba(0,0,0,0.5);padding:6px 16px;border-radius:8px;pointer-events:none;z-index:10;display:none;">☀ Sun</div>
+
+<div id="ui">
+  <div class="control-group">
+    <label>Speed</label>
+    <input type="range" id="speed-slider" min="-100" max="100" value="0" step="1">
+    <span class="value" id="speed-display">1.0×</span>
+  </div>
+  <div class="control-group">
+    <label>Year</label>
+    <input type="range" id="year-slider" min="1970" max="2100" value="1970" step="1">
+    <span class="value" id="year-display">0.0</span>
+  </div>
+  <div class="control-group">
+    <label>Zoom</label>
+    <input type="range" id="zoom-slider" min="5" max="600" value="80" step="1">
+    <span class="value" id="zoom-display">30</span>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ============================================================
+// MODULE A: SeedEngine — Deterministic PRNG
+// ============================================================
+
+/**
+ * mulberry32 — a simple seeded PRNG returning 0..1
+ */
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * djb2 hash — hash a word to a 32-bit unsigned integer
+ */
+function hashWord(w) {
+  let hash = 5381;
+  for (let i = 0; i < w.length; i++) {
+    hash = ((hash << 5) - hash) + w.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash >>> 0;
+}
+
+/**
+ * Space-themed wordlist for seed selection
+ */
+const SEED_WORDS = ['stellar', 'void', 'drift', 'ember', 'horizon', 'eclipse', 'nova', 'orbit', 'solar', 'cosmos', 'nebula', 'pulse', 'radiant', 'stellaris', 'umbra', 'zenith', 'aurora', 'comet', 'flare', 'gravity', 'helium', 'ignite', 'jupiter', 'kepler', 'lunar', 'mercury', 'nebula', 'orion', 'photon', 'quasar', 'rocket', 'saturn', 'thrust', 'umbriel', 'venta', 'warp', 'xenon', 'yield', 'zenith', 'astra'];
+
+/**
+ * Read seed word from URL query string (?seed=...)
+ */
+function getSeedFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('seed') || 'stellar';
+}
+
+// ─── Initialize SeedEngine from URL parameter ────────────────
+const seedWord = getSeedFromURL();
+
+// Multiple RNG streams — each gets a distinct seed offset
+const rng = mulberry32(hashWord(seedWord));
+const starRng = mulberry32(hashWord(seedWord) + 1);
+const missionRng = mulberry32(hashWord(seedWord) + 2);
+
+// Layout RNG stream — drives planet starting angles (initAngle).
+// Dedicated stream so ?seed=word always yields the same orbital layout
+// AND the same launch windows. NEVER use Math.random() for planet placement.
+const layoutRng = mulberry32(hashWord(seedWord) + 3);
+
+// SeedEngine namespace — provides named RNG streams for deterministic generation
+const SeedEngine = {
+  stream: function(seed, namespace) {
+    return mulberry32(hashWord(seed + "|" + namespace));
+  }
+};
+
+// ─── Seed display ────────────────────────────────────────────
+// Show current seed word on the page
+const seedDisplay = document.createElement('div');
+seedDisplay.textContent = 'seed: ' + seedWord;
+seedDisplay.style.cssText = `
+  position: fixed;
+  bottom: 12px;
+  right: 16px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  opacity: 0.2;
+  z-index: 5;
+  pointer-events: none;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  transition: opacity 0.3s;
+`;
+seedDisplay.title = '?seed=' + seedWord + ' to change | Refresh to apply a new seed';
+document.body.appendChild(seedDisplay);
+
+// Log seed info to console
+console.log('🌱 Seed: ' + seedWord + ' | RNG streams initialized');
+console.log('   rng() sample: ' + rng().toFixed(6));
+console.log('   starRng() sample: ' + starRng().toFixed(6));
+console.log('   missionRng() sample: ' + missionRng().toFixed(6));
+
+
+// ─── MODULE B: CelestialData ──────────────────────────────────────
+// Planetary constants & orbital data. Used by OrbitSolver and TransferSolver.
+
+/** Gravitational constant (km³/kg/s²) */
+const G = 6.67430e-20;
+
+/** Solar mass (kg) */
+const M_SUN = 1.9885e30;
+
+/** Earth mass (kg) */
+const M_EARTH = 5.97217e24;
+
+/** Mars mass (kg) */
+const M_MARS = 6.4171e23;
+
+/** Moon mass (kg) */
+const M_MOON = 7.342e22;
+
+/** Standard gravitational parameter — Sun (km³/s²) */
+const MU_SUN = 1.32712440018e11;
+
+/** Standard gravitational parameter — Earth (km³/s²) */
+const MU_EARTH = 3.986004418e5;
+
+/** Standard gravitational parameter — Mars (km³/s²) */
+const MU_MARS = 4.282837e4;
+
+/** Standard gravitational parameter — Moon (km³/s²) */
+const MU_MOON = 4.9048695e3;
+
+/** One Astronomical Unit in km */
+const AU_TO_KM = 149597870.7;
+
+/** One Earth year in seconds (365.25 days) */
+const EARTH_PERIOD_SEC = 31557600;
+
+/** Seconds in a day */
+const SEC_PER_DAY = 86400;
+
+/** Radians per degree */
+const DEG_TO_RAD = Math.PI / 180;
+
+// -----------------------------------------------------------
+// Planet orbital data (heliocentric, circular approximation)
+// Each entry: { name, a_AU, a_km, period_years, period_sec, omega, initAngle }
+// -----------------------------------------------------------
+
+// ============================================================
+// PLANET_CATALOG — SINGLE SOURCE OF TRUTH
+// ============================================================
+// SOURCE OF TRUTH — edit here only.
+//
+// Physics fields:  a_AU, period_years
+//   initAngle is auto-derived from the seeded layoutRng stream, so
+//   ?seed=word always yields the same orbital layout AND the same
+//   launch windows (never Math.random()).
+// Derived fields:  a_km, period_sec, omega, initAngle,
+//                  orbitRadius (scene units), period (scene seconds)
+// Visual fields:   color, size, tilt, hasMoon, hasRing, tilted, retrograde, fact
+//
+// PLANETS (physics), PLANET_DATA (visual scene) and the runtime planets[]
+// objects ALL derive from this one array.
+// ============================================================
+
+const AU_TO_SCENE = 16;      // 1 AU = 16 scene units (Earth orbitRadius)
+const SCENE_YEAR_SEC = 60;   // 1 sim year = 60 sim seconds (Earth scene period)
+
+const PLANET_CATALOG = [
+  { name: "Mercury", a_AU: 0.387,  period_years: 0.241,  color: 0xb0a090, size: 0.6,  tilt: 0.03,
+    fact: "Mercury is the smallest planet and orbits the Sun every 88 Earth days. A year on Mercury is just 88 days, but a day lasts 59 Earth days." },
+  { name: "Venus",   a_AU: 0.723,  period_years: 0.615,  color: 0xe8c880, size: 0.9,  tilt: 2.64,
+    fact: "Venus rotates backwards (retrograde) compared to most planets. It's the hottest planet at 462\u00b0C \u2014 hot enough to melt lead!" },
+  { name: "Earth",   a_AU: 1.0,    period_years: 1.0,    color: 0x4499dd, size: 1.0,  tilt: 0.41, hasMoon: true,
+    fact: "Earth is the only known planet with liquid water on its surface and the only one known to harbor life. About 71% is covered in water." },
+  { name: "Mars",    a_AU: 1.524,  period_years: 1.881,  color: 0xcc5533, size: 0.75, tilt: 0.44,
+    fact: "Mars has the tallest mountain in the solar system \u2014 Olympus Mons, at 21.9 km high. That's 2.5x the height of Everest!" },
+  { name: "Jupiter", a_AU: 5.203,  period_years: 11.862, color: 0xddbb99, size: 2.4,  tilt: 0.05,
+    fact: "Jupiter is the largest planet \u2014 all other planets could fit inside it. Its Great Red Spot is a storm larger than Earth that has raged for centuries." },
+  { name: "Saturn",  a_AU: 9.537,  period_years: 29.457, color: 0xeeddbb, size: 2.0,  tilt: 0.47, hasRing: true,
+    fact: "Saturn's ring system spans up to 282,000 km but is only about 10 meters thick. It's made of 99.9% ice and trace amounts of rock." },
+  { name: "Uranus",  a_AU: 19.191, period_years: 84.011, color: 0x88ccdd, size: 1.6,  tilt: 1.71, tilted: true,
+    fact: "Uranus rotates on its side with an axial tilt of 98\u00b0, likely from a massive ancient collision. It also has the coldest atmosphere at -224\u00b0C." },
+  { name: "Neptune", a_AU: 30.069, period_years: 164.8,  color: 0x3366cc, size: 1.5,  tilt: 0.49,
+    fact: "Neptune has the strongest winds of any planet \u2014 reaching 2,100 km/h. It was the first planet predicted mathematically before being observed." }
+].map((p, i) => {
+  const period_sec = p.period_years * EARTH_PERIOD_SEC;
+  return {
+    ...p,
+    a_km: p.a_AU * AU_TO_KM,                 // derived — physics stays consistent
+    period_sec,                               // derived
+    omega: 2 * Math.PI / period_sec,          // derived
+    initAngle: layoutRng() * Math.PI * 2,     // derived from seeded PRNG
+    orbitRadius: p.a_AU * AU_TO_SCENE,        // visual derived from physics
+    period: p.period_years * SCENE_YEAR_SEC,  // visual derived from physics
+    index: i
+  };
+});
+
+// ── Physics view — used by TransferSolver, ColonyEngine, findLaunchWindow ──
+const PLANETS = PLANET_CATALOG;
+
+// Lookup helpers
+const PLANET_BY_NAME = Object.fromEntries(PLANETS.map(p => [p.name.toLowerCase(), p]));
+
+// ── Visual view — used by the Three.js scene (orbit lines, meshes, OrbitSolver) ──
+// orbitRadius & period are derived from the physics fields above, so the
+// visuals can never drift from the physics.
+const PLANET_DATA = PLANET_CATALOG.map(p => ({
+  name: p.name, color: p.color, size: p.size,
+  orbitRadius: p.orbitRadius, period: p.period, tilt: p.tilt,
+  hasMoon: p.hasMoon, hasRing: p.hasRing, tilted: p.tilted, retrograde: p.retrograde,
+  fact: p.fact
+}));
+
+
+
+const PARKING_ORBIT_FACTOR = 2.0;       // orbit radius = planet visual size * this
+const PARKING_ORBIT_SPEED = 4.0;        // rad/sim-second (1 orbit per ~1.5 sec at 1x speed)
+
+// ─── TimeKeeper Module ────────────────────────────────────────
+const TimeKeeper = {
+  simYears: 1970,
+  speedMultiplier: 1.0,
+  paused: false,
+  scrubbing: false,
+  lastWallTime: null,
+  earthPeriodSec: 60,
+
+  update(wallTimeMs) {
+    if (this.lastWallTime === null) {
+      this.lastWallTime = wallTimeMs;
+      return;
+    }
+    if (this.paused || this.scrubbing) {
+      this.lastWallTime = wallTimeMs;
+      return;
+    }
+    const dtSec = (wallTimeMs - this.lastWallTime) / 1000;
+    this.lastWallTime = wallTimeMs;
+    // Accumulate sim years: dt * speed / earthPeriodSec
+    this.simYears += (dtSec * this.speedMultiplier) / this.earthPeriodSec;
+  },
+
+  setSpeed(val) {
+    // val is -100..+100
+    // -100 → 0.0 (paused), 0 → 1.0 (normal), +100 → 100.0 (max)
+    // Logarithmic mapping: 10^(val/50)
+    if (val <= 0) {
+      this.speedMultiplier = (val + 100) / 100;
+    } else {
+      this.speedMultiplier = Math.pow(10, val / 50);
+    }
+    this.paused = (this.speedMultiplier === 0);
+  },
+
+  scrubYear(val) {
+    // val is 1970..2100
+    this.simYears = val;
+    this.scrubbing = true;
+  },
+
+  getSimYears() {
+    return this.simYears;
+  },
+
+  getSimElapsedSec() {
+    return this.simYears * this.earthPeriodSec;
+  },
+
+  togglePause() {
+    this.paused = !this.paused;
+  },
+
+  reset() {
+    this.simYears = 0;
+    this.lastWallTime = null;
+  }
+};
+
+
+
+// ─── MODULE D: OrbitSolver ──────────────────────────────────────
+// Computes planet positions from simulation time.
+// Uses planet.data for orbital parameters, planet.initAngle for starting angle.
+
+const OrbitSolver = {
+  getPlanetPosition(planet, simElapsedSec) {
+    const dir = planet.data.retrograde ? -1 : 1;
+    const angle = planet.initAngle + dir * (2 * Math.PI / planet.data.period) * simElapsedSec;
+    return {
+      x: Math.cos(angle) * planet.data.orbitRadius,
+      z: Math.sin(angle) * planet.data.orbitRadius,
+      angle: angle
+    };
+  },
+  getPlanetAngle(planet, simElapsedSec) {
+    const dir = planet.data.retrograde ? -1 : 1;
+    return planet.initAngle + dir * (2 * Math.PI / planet.data.period) * simElapsedSec;
+  }
+};
+
+
+
+// ─── MODULE E: TransferSolver — Hohmann Transfer Math Engine ──
+// Dependencies: Uses constants from CelestialData (MODULE B).
+// All functions are pure.
+// ================================================================
+
+// ---- HOHMANN TRANSFER ----
+
+function computeHohmannTransfer(r1_AU, r2_AU, mu) {
+  const r1_km = r1_AU * AU_TO_KM;
+  const r2_km = r2_AU * AU_TO_KM;
+  const outward = r2_AU > r1_AU;
+  const r_peri = outward ? r1_km : r2_km;
+  const r_apo  = outward ? r2_km : r1_km;
+  const a_km = (r1_km + r2_km) / 2;
+  const e = (r_apo - r_peri) / (r_apo + r_peri);
+  const t_transfer_sec = Math.PI * Math.sqrt((a_km * a_km * a_km) / mu);
+
+  const v_dep_circ = Math.sqrt(mu / r1_km);
+  const v_dep_ellip = Math.sqrt(mu * (2 / r1_km - 1 / a_km));
+  const v_arr_circ = Math.sqrt(mu / r2_km);
+  const v_arr_ellip = Math.sqrt(mu * (2 / r2_km - 1 / a_km));
+
+  const dv_depart = outward
+    ? v_dep_ellip - v_dep_circ
+    : v_dep_circ - v_dep_ellip;
+  const dv_arrive = outward
+    ? v_arr_circ - v_arr_ellip
+    : v_arr_ellip - v_arr_circ;
+
+  return {
+    a_AU: a_km/AU_TO_KM, a_km, e, r_peri_km: r_peri, r_apo_km: r_apo,
+    t_transfer_sec, t_transfer_days: t_transfer_sec/SEC_PER_DAY,
+    t_transfer_years: t_transfer_sec/EARTH_PERIOD_SEC,
+    v_dep_circ_km_s: v_dep_circ, v_dep_ellip_km_s: v_dep_ellip,
+    dv_depart_km_s: dv_depart,
+    v_arr_circ_km_s: v_arr_circ, v_arr_ellip_km_s: v_arr_ellip,
+    dv_arrive_km_s: dv_arrive,
+    dv_total_km_s: dv_depart + dv_arrive,
+    is_outward: outward
+  };
+}
+
+// ---- PHASE ANGLE ----
+
+function computePhaseAngle(r1_AU, r2_AU, T1_years, T2_years, mu = MU_SUN) {
+  const transfer = computeHohmannTransfer(r1_AU, r2_AU, mu);
+  const t_transfer = transfer.t_transfer_sec;
+  const omega1 = (2*Math.PI)/(T1_years*EARTH_PERIOD_SEC);
+  const omega2 = (2*Math.PI)/(T2_years*EARTH_PERIOD_SEC);
+  const phaseAngle_rad = Math.PI - omega2 * t_transfer;
+  const synodicPeriod_sec = (2*Math.PI)/Math.abs(omega1 - omega2);
+
+  return {
+    phaseAngle_rad,
+    phaseAngle_deg: phaseAngle_rad*180/Math.PI,
+    synodicPeriod_years: synodicPeriod_sec/EARTH_PERIOD_SEC,
+    synodicPeriod_days: synodicPeriod_sec/SEC_PER_DAY,
+    transfer_years: transfer.t_transfer_years,
+    omega1, omega2
+  };
+}
+
+// ---- LAUNCH WINDOW ----
+
+function computeLaunchWindow(currentPhaseDiff, targetPhase, omega1, omega2, synodicPeriod_years) {
+  const deltaOmega = omega1 - omega2;
+  let deltaPhase = currentPhaseDiff - targetPhase;
+  if (deltaPhase < 0) deltaPhase += 2*Math.PI;
+  deltaPhase = deltaPhase % (2*Math.PI);
+
+  const waitTime_sec = deltaPhase / deltaOmega;
+  const waitTime_years = waitTime_sec / EARTH_PERIOD_SEC;
+
+  return {
+    waitTime_years,
+    waitTime_days: waitTime_years * 365.25,
+    nextLaunchYear: null,
+    isWindow: waitTime_years < synodicPeriod_years * 0.01
+  };
+}
+
+// ---- SOI ----
+
+function computeSOI(planetOrbitRadius_AU, planetMass_kg, starMass_kg = M_SUN) {
+  const r_orbit_km = planetOrbitRadius_AU * AU_TO_KM;
+  const soi_km = r_orbit_km * Math.pow(planetMass_kg/starMass_kg, 0.4);
+  return { soi_km, soi_AU: soi_km/AU_TO_KM };
+}
+
+// ---- KEPLER SOLVER ----
+
+function solveKepler(M, e, tol = 1e-12, maxIter = 50) {
+  M = ((M % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+  let E = e > 0.8 ? Math.PI : M + e * Math.sin(M);
+
+  for (let i = 0; i < maxIter; i++) {
+    const dE = (E - e*Math.sin(E) - M) / (1 - e*Math.cos(E));
+    E -= dE;
+    if (Math.abs(dE) < tol) return ((E % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+  }
+  return ((E % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+}
+
+function trueAnomaly(E, e) {
+  const factor = Math.sqrt((1+e)/(1-e));
+  const nu = 2 * Math.atan2(factor * Math.sin(E/2), Math.cos(E/2));
+  return ((nu % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+}
+
+function meanAnomaly(t_sec, period_sec) {
+  return (2*Math.PI * t_sec) / period_sec;
+}
+
+// ---- POSITION ON TRANSFER ELLIPSE ----
+
+function positionOnTransferEllipse(t_elapsed_years, t_transfer_years, a_AU, e, departureAngle_rad, inward = false) {
+  const t_elapsed = Math.max(0, Math.min(t_elapsed_years, t_transfer_years));
+  const n = Math.PI/(t_transfer_years * EARTH_PERIOD_SEC); // Half-orbit (0→π) for Hohmann transfer
+  const M = (inward ? Math.PI : 0) + n * t_elapsed * EARTH_PERIOD_SEC;
+  const E = solveKepler(M, e);
+  const nu = trueAnomaly(E, e);
+  const r_AU = a_AU * (1 - e*Math.cos(E));
+
+  const x_local = r_AU * Math.cos(nu);
+  const y_local = r_AU * Math.sin(nu);
+  const cos_t = Math.cos(departureAngle_rad + (inward ? Math.PI : 0));
+  const sin_t = Math.sin(departureAngle_rad + (inward ? Math.PI : 0));
+
+  return {
+    x_AU: x_local*cos_t - y_local*sin_t,
+    y_AU: x_local*sin_t + y_local*cos_t,
+    r_AU,
+    nu_rad: nu,
+    percentComplete: t_elapsed / t_transfer_years
+  };
+}
+
+// ---- VALIDATION ----
+
+function validateTransferSolver() {
+  const t = computeHohmannTransfer(1.0, 1.524, MU_SUN);
+  const p = computePhaseAngle(1.0, 1.524, 1.0, 1.881, MU_SUN);
+  const checks = [
+    [t.t_transfer_years, 0.709, 0.005],
+    [t.t_transfer_days,  259,   3],
+    [t.dv_depart_km_s,   2.94,  0.06],
+    [t.dv_arrive_km_s,   2.65,  0.06],
+    [t.a_AU,             1.262, 0.002],
+    [t.e,                0.2076,0.002],
+    [p.phaseAngle_deg,   44,    1],
+    [p.synodicPeriod_days,780,  10],
+  ];
+  let ok = true;
+  for (const [actual, expected, tol] of checks) {
+    if (Math.abs(actual - expected) > tol) { ok = false; console.warn('FAIL:', actual, 'vs', expected); }
+  }
+  if (ok) console.log('✓ TransferSolver validated.');
+  return ok;
+}
+
+
+
+
+// ─── MODULE F: RocketEngine — Mission Generation & Active Rockets ──
+// Dependencies: SeedEngine (MODULE A), CelestialData (MODULE B),
+//               OrbitSolver (MODULE D), TransferSolver (MODULE E).
+// Generates deterministic missions from seed and animates rocket flights.
+// ====================================================================
+
+/** Look up celestial data by name from MODULE B PLANETS array */
+function getPlanet(name) {
+  return PLANETS.find(p => p.name === name) || null;
+}
+
+
+const COLONY_RULES = {BUILD_THRESHOLD:5,SUPPLY_TO_SPAWN:3,ERA_LAUNCH_GAP:{1950:4,1975:2,2000:0.8,2050:0.3,2150:0.1,2300:0.05},MAX_INSTALLATIONS_PER_BODY:4,ELIGIBLE_TARGET_BODIES:["moon","mars","venus","jupiter","saturn"]};
+function getLaunchGap(y){var k=Object.keys(COLONY_RULES.ERA_LAUNCH_GAP).map(Number).sort((a,b)=>a-b);if(y<=k[0])return COLONY_RULES.ERA_LAUNCH_GAP[k[0]];if(y>=k[k.length-1])return COLONY_RULES.ERA_LAUNCH_GAP[k[k.length-1]];for(var i=0;i<k.length-1;i++){if(y>=k[i]&&y<k[i+1]){var t=(y-k[i])/(k[i+1]-k[i]);return COLONY_RULES.ERA_LAUNCH_GAP[k[i]]+t*(COLONY_RULES.ERA_LAUNCH_GAP[k[i+1]]-COLONY_RULES.ERA_LAUNCH_GAP[k[i]])}}return 1}
+const ColonyEngine={timeline:null,generate:function(s,f,t){var r=SeedEngine.stream(s,"colony");this.timeline={missions:[],installations:[]};var cu=f,mi=0;while(cu<t){var d=this.decideNextLaunch(cu,r);var p=this.findLaunchWindow(d.origin,d.destination,cu);if(!p){cu+=0.5;continue}var m={id:"colony-"+(mi++),kind:d.kind,origin:d.origin,destination:d.destination,launchTime:p.launchTime,arrivalTime:p.arrivalTime,returnTime:null,phasePath:p.phasePath,contributesTo:d.contributesTo,mesh:null,trail:null,ghostEllipse:null,trailPositions:[],state:"PENDING",launchYear:p.launchTime,originPlanet:d.origin.id,targetPlanet:d.destination.id,originPlanetRef:null,destPlanetRef:null,parkingRadiusScene:0,parkingRadiusAU:0,orbitStartSimSec:0};this.timeline.missions.push(m);this.recordArrivalEffects(m,p.arrivalTime);var g=getLaunchGap(cu);cu=Math.max(cu+0.1,p.launchTime+g*(0.5+r()*0.5))}return this.timeline},decideNextLaunch:function(cu,r){var ai=this.timeline.installations.filter(function(i){return i.active&&i.builtTime<=cu});var ro=r();var b=COLONY_RULES.ELIGIBLE_TARGET_BODIES;var ta=b[Math.floor(r()*b.length)];if(ai.length===0||ro<0.6){return{kind:"probe",origin:{type:"planet",id:"earth"},destination:{type:"planet",id:ta},contributesTo:"inst-"+ta+"-"+this.timeline.installations.filter(function(i){return i.body&&i.body.id===ta}).length}}else if(ro<0.85){var fr=ai[Math.floor(r()*ai.length)];return{kind:"supply",origin:fr.body,destination:{type:"planet",id:ta},contributesTo:"inst-"+ta+"-"+this.timeline.installations.filter(function(i){return i.body&&i.body.id===ta}).length}}else{var fr=ai[Math.floor(r()*ai.length)];return{kind:"crew",origin:fr.body,destination:{type:"planet",id:ta},contributesTo:"inst-"+ta+"-"+this.timeline.installations.filter(function(i){return i.body&&i.body.id===ta}).length}}},findLaunchWindow:function(o,d,cu){var oi=o.id.toLowerCase(),di=d.id.toLowerCase(),od=PLANET_BY_NAME[oi],dd=PLANET_BY_NAME[di];if(!od&&oi==='moon')od=PLANET_BY_NAME['earth'];if(!dd&&di==='moon')dd=PLANET_BY_NAME['earth'];if(!od||!dd)return null;if(od===dd)return{launchTime:cu,arrivalTime:cu+0.0082,phasePath:{waypoints:[{x:od.a_AU,y:0}]}};var tr=computeHohmannTransfer(od.a_AU,dd.a_AU,MU_SUN),tt=tr.t_transfer_years,pi=computePhaseAngle(od.a_AU,dd.a_AU,od.period_years,dd.period_years,MU_SUN),rp=((pi.phaseAngle_rad%(2*Math.PI))+2*Math.PI)%(2*Math.PI),oa=od.initAngle+2*Math.PI*cu/od.period_years,da=dd.initAngle+2*Math.PI*cu/dd.period_years,cp=((da-oa)%(2*Math.PI)+2*Math.PI)%(2*Math.PI),wo=2*Math.PI/od.period_years,wd=2*Math.PI/dd.period_years,pr=wd-wo,ns=((rp-cp)%(2*Math.PI)+2*Math.PI)%(2*Math.PI),wy=Math.abs(pr)<1e-12?0:(ns/pr)<0?ns/pr+2*Math.PI/Math.abs(pr):ns/pr,lt=cu+wy,at=lt+tt,depA=od.initAngle+2*Math.PI*lt/od.period_years,wp=[],np=20;for(var i=0;i<=np;i++){var t=i/np*tt,ps=positionOnTransferEllipse(t,tt,tr.a_AU,tr.e,depA,od.a_AU>dd.a_AU);wp.push({x:ps.x_AU,y:ps.y_AU})}return{launchTime:lt,arrivalTime:at,phasePath:{waypoints:wp}}},recordArrivalEffects:function(m,at){if(!m.contributesTo)return;var ix=this.timeline.installations.find(function(x){return x.id===m.contributesTo});if(!ix){ix={id:m.contributesTo,type:"station",body:m.destination,slotIndex:0,builtTime:at,arrivalsCounted:0,supplyArrivalsSinceLastSpawn:0,active:false};this.timeline.installations.push(ix)}if(m.kind==="supply")ix.supplyArrivalsSinceLastSpawn++;else ix.arrivalsCounted++;if(ix.arrivalsCounted>=COLONY_RULES.BUILD_THRESHOLD)ix.active=true},getActiveMissions:function(y){return this.timeline?this.timeline.missions.filter(function(m){return m.launchTime<=y&&m.arrivalTime>=y}):[]},getActiveInstallations:function(y){return this.timeline?this.timeline.installations.filter(function(i){return i.builtTime<=y}):[]}};
+ColonyEngine.generate(seedWord, 1970, 2050);
+// ColonyEngine missions will be loaded in RocketEngine.generateMissions()
+
+
+const RocketEngine = {
+  pendingMissions: [],   // missions waiting for their launch year
+  activeRockets: [],     // rockets currently in flight
+  completedMissions: [], // missions that have landed
+  rocketGroup: null,     // THREE.Group for rocket meshes
+  missionCount: 0,       // total missions generated
+  auToScene: 16,         // conversion factor: 1 AU = 16 scene units (Earth orbitRadius)
+  
+  init(scene) {
+    this.rocketGroup = new THREE.Group();
+    scene.add(this.rocketGroup);
+    this.auToScene = 16; // Earth's orbitRadius is 16, a_AU is 1.0
+    this.generateMissions();
+    console.log(`🚀 RocketEngine initialized | ${this.missionCount} missions generated`);
+  },
+  
+  generateMissions() {
+    // Use seed from SeedEngine
+    const seedWord = getSeedFromURL();
+    const rng = mulberry32(hashWord(seedWord) + 2); // mission RNG stream
+    
+    this.pendingMissions = [];
+    let total = 0;
+    
+    for (let year = 1900; year <= 2200; year++) {
+      // Era-based mission count
+      let maxMissions = 0;
+      if (year < 1957) maxMissions = 0;      // pre-space age
+      else if (year < 1970) maxMissions = 2;  // first satellites, moon
+      else if (year < 2000) maxMissions = 3;  // stations, probes
+      else if (year < 2100) maxMissions = 5;  // colonization begins
+      else maxMissions = 8;                   // mature system
+      
+      const count = Math.floor(rng() * (maxMissions + 1));
+      total += count;
+      
+      for (let i = 0; i < count; i++) {
+        const mission = this.createMission(year, i, rng, seedWord);
+        if (mission) this.pendingMissions.push(mission);
+      }
+    }
+    this.missionCount = this.pendingMissions.length;
+    // If ColonyEngine has generated missions, use those instead of local generation
+    if (typeof ColonyEngine !== 'undefined' && ColonyEngine.timeline && ColonyEngine.timeline.missions) {
+      this.pendingMissions = ColonyEngine.timeline.missions.slice().map(m => {
+        // Normalize ColonyEngine missions: convert origin/destination from objects to strings
+        const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1);
+        const originName = typeof m.origin === 'object' ? capitalize(m.origin.id) : m.origin;
+        const targetName = typeof m.destination === 'object' ? capitalize(m.destination.id) : (m.target || m.destination);
+        return {
+          ...m,
+          origin: originName,
+          target: targetName,
+          originPlanet: originName,
+          targetPlanet: targetName,
+        };
+      });
+      this.missionCount = this.pendingMissions.length;
+    }
+  },
+  
+  createMission(year, index, rng, seedWord) {
+    const innerPlanets = ['Earth', 'Moon'];
+    const midPlanets = ['Mars', 'Venus'];
+    const outerPlanets = ['Jupiter', 'Saturn'];
+    
+    let origins, targets;
+    
+    if (year < 1970) {
+      origins = ['Earth'];
+      targets = ['Moon'];
+    } else if (year < 2000) {
+      origins = ['Earth'];
+      targets = ['Moon', 'Mars', 'Venus'];
+    } else if (year < 2100) {
+      origins = ['Earth', 'Moon', 'Mars'];
+      targets = ['Moon', 'Mars', 'Venus', 'Jupiter', 'Saturn'];
+    } else {
+      origins = ['Earth', 'Moon', 'Mars', 'Venus'];
+      targets = ['Moon', 'Mars', 'Venus', 'Jupiter', 'Saturn'];
+    }
+    
+    const origin = origins[Math.floor(rng() * origins.length)];
+    const target = targets[Math.floor(rng() * targets.length)];
+    
+    if (origin === target) return null; // skip self-missions
+    
+    const launchYear = year;
+    
+    return {
+      id: `mission-${year}-${index}`,
+      seedWord,
+      origin,
+      target,
+      launchYear,
+      originPlanet: null,
+      targetPlanet: null,
+      transfer: null,
+      mesh: null,
+      trail: null,
+      state: 'PENDING',
+      launchTime: null,
+      trailPositions: [],
+      ghostEllipse: null,
+      startTime: null,
+      originPlanetRef: null,
+      destPlanetRef: null,
+      parkingRadiusScene: 0,
+      parkingRadiusAU: 0,
+      orbitStartSimSec: 0,
+      orbitPhase: 0,
+      isInward: false,
+    };
+  },
+  checkLaunchWindow(mission, simYears, simElapsedSec, planets) {
+    // Handle Moon: use Earth's planet data and scene object
+    const resolvePlanet = (name) => {
+      if (name === 'Moon') return planets.find(p => p.name === 'Earth');
+      return planets.find(p => p.name === name);
+    };
+    const resolveData = (name) => {
+      if (name === 'Moon') return getPlanet('Earth');
+      return getPlanet(name);
+    };
+    
+    // Find origin and target planets
+    const originP = resolvePlanet(mission.origin);
+    const targetP = resolvePlanet(mission.target);
+    if (!originP || !targetP) return false;
+
+    // Get current angles
+    const originAngle = OrbitSolver.getPlanetAngle(originP, simElapsedSec);
+    const targetAngle = OrbitSolver.getPlanetAngle(targetP, simElapsedSec);
+
+    // Current phase difference (how much target leads origin)
+    let currentPhase = targetAngle - originAngle;
+    currentPhase = ((currentPhase % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+
+    // Compute required phase angle for this Hohmann transfer
+    const originData = getPlanet(mission.origin);
+    const targetData = getPlanet(mission.target);
+    if (!originData || !targetData) return false;
+
+    const phaseInfo = computePhaseAngle(
+      originData.a_AU, targetData.a_AU,
+      originData.period_years, targetData.period_years,
+      MU_SUN
+    );
+
+    // Required phase: target should lead origin by this amount
+    const requiredPhase = ((phaseInfo.phaseAngle_rad % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+
+    // Difference between current and required
+    let diff = currentPhase - requiredPhase;
+    diff = Math.abs(((diff % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+
+    // Tolerance: within 5% of the synodic period's angular range
+    const tolerance = 0.002 * (2 * Math.PI);
+
+    return diff < tolerance || (2 * Math.PI - diff) < tolerance;
+  },
+
+  
+  update(simYears, simElapsedSec, planets, scene) {
+    // 1. Check for missions that should launch
+    const nowLaunching = [];
+    for (let i = this.pendingMissions.length - 1; i >= 0; i--) {
+      const m = this.pendingMissions[i];
+      if (m.launchYear <= simYears) {
+        // Only launch if phase angle is correct (planets aligned)
+        if (this.checkLaunchWindow(m, simYears, simElapsedSec, planets)) {
+          this.launchRocket(m, simYears, simElapsedSec, planets, scene);
+          nowLaunching.push(m);
+          this.pendingMissions.splice(i, 1);
+        }
+        // If not in window, stay pending — will be rechecked next frame
+        // The mission will eventually launch when planets align
+      }
+    }
+    
+    // 2. Update active rockets
+    for (const rocket of this.activeRockets) {
+      this.updateRocket(rocket, simYears, simElapsedSec);
+    }
+    
+    // 3. Remove completed/landed rockets from active list (keep mesh)
+    for (let i = this.activeRockets.length - 1; i >= 0; i--) {
+      if (this.activeRockets[i].state === 'LANDED') {
+        this.completedMissions.push(this.activeRockets[i]);
+        this.activeRockets.splice(i, 1);
+      }
+    }
+  },
+  
+  launchRocket(mission, simYears, simElapsedSec, planets, scene) {
+    // Build planet lookup by name (Moon → Earth)
+    const planetByName = {};
+    planets.forEach(p => planetByName[p.name] = p);
+    // For Moon missions, use Earth's scene object
+    if (mission.origin === 'Moon' || mission.target === 'Moon') {
+      planetByName['Moon'] = planetByName['Earth'];
+    }
+    
+    const originPlanet = planetByName[mission.origin];
+    if (!originPlanet) return;
+    
+    // Set state to PRE_ORBIT — parking orbit around origin planet
+    mission.state = 'PRE_ORBIT';
+    
+    // Save parking orbit data
+    const parkingRadius = originPlanet.data.size * PARKING_ORBIT_FACTOR;
+    mission.parkingRadiusScene = parkingRadius;
+    mission.parkingRadiusAU = parkingRadius / this.auToScene;
+    mission.orbitStartSimSec = simElapsedSec;
+    mission.orbitPhase = 0;
+    mission.originPlanetRef = originPlanet;
+    
+    // Determine if transfer is inward (origin further from sun than target)
+    const originData_local = getPlanet(mission.origin);
+    const targetData_local = getPlanet(mission.target);
+    mission.isInward = originData_local && targetData_local ? originData_local.a_AU > targetData_local.a_AU : false;
+    mission.inward = mission.isInward; // for FLYING handler compatibility
+    
+    // Convert AU to scene units
+    mission.scale = this.auToScene;
+    
+    // Create rocket mesh (small orange sphere)
+    const geometry = new THREE.SphereGeometry(0.3, 8, 8);
+    const material = new THREE.MeshBasicMaterial({ color: 0xff6600 });
+    const mesh = new THREE.Mesh(geometry, material);
+    // Position at planet initially (will be updated in PRE_ORBIT handler)
+    mesh.position.set(originPlanet.group.position.x, 0, originPlanet.group.position.z);
+    this.rocketGroup.add(mesh);
+    mission.mesh = mesh;
+    
+    // Create trail line (empty initially)
+    const trailGeom = new THREE.BufferGeometry();
+    const trailMat = new THREE.LineBasicMaterial({
+      color: 0xff8800,
+      transparent: true,
+      opacity: 0.6
+    });
+    const trailLine = new THREE.Line(trailGeom, trailMat);
+    this.rocketGroup.add(trailLine);
+    mission.trail = trailLine;
+    mission.trailPositions = [];
+    
+    this.activeRockets.push(mission);
+    
+    // Log the parking orbit insertion
+    console.log(`🚀 ${mission.origin} -> ${mission.target} entered parking orbit at year ${simYears.toFixed(1)}`);
+  },
+  
+  updateRocket(rocket, simYears, simElapsedSec) {
+    // ─── PRE_ORBIT: physics-aware parking orbit around origin planet ──
+    if (rocket.state === 'PRE_ORBIT') {
+      // Advance orbit phase based on simulation time
+      const dt = simElapsedSec - rocket.orbitStartSimSec;
+      rocket.orbitPhase = dt * PARKING_ORBIT_SPEED;
+      
+      const phase = rocket.orbitPhase;
+      const r = rocket.parkingRadiusScene;
+      const planet = rocket.originPlanetRef;
+      
+      // Position the rocket in a circular parking orbit around the planet
+      rocket.mesh.position.x = planet.group.position.x + Math.cos(phase) * r;
+      rocket.mesh.position.z = planet.group.position.z + Math.sin(phase) * r;
+      rocket.mesh.visible = true;
+      
+      // Check ejection condition after at least 0.5 orbits (to give visual context)
+      if (rocket.orbitPhase >= 10 * 2 * Math.PI) {
+        // Get planet's current orbital angle around the sun
+        const planetAngle = OrbitSolver.getPlanetAngle(planet, simElapsedSec);
+        
+        // Ejection angle logic:
+        // - Outward transfer (to further orbit): eject when rocket velocity aligns with planet's orbital velocity
+        //   Ejection angle = planetAngle (rocket on far side, moving same direction as planet)
+        // - Inward transfer (to closer orbit): eject when rocket velocity opposes planet's orbital velocity
+        //   Ejection angle = planetAngle + Math.PI (rocket on near side, moving opposite to planet)
+        const ejectionAngle = rocket.isInward ? planetAngle + Math.PI : planetAngle;
+        
+        // Normalize the angular difference (handles wrap-around)
+        const diff = Math.abs(rocket.orbitPhase - ejectionAngle);
+        const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
+        
+        // Tolerance: ~5.7 degrees (0.1 rad)
+        if (normalizedDiff < 0.1) {
+          // EJECT! Start Hohmann transfer
+          rocket.state = 'FLYING';
+          rocket.launchTime = simYears;
+          
+          // Resolve planet data for transfer computation
+          const resolveData = (name) => {
+            if (name === 'Moon') return getPlanet('Earth');
+            return getPlanet(name);
+          };
+          const originData = resolveData(rocket.origin);
+          const targetData = resolveData(rocket.target);
+          if (!originData || !targetData) {
+            rocket.state = 'LANDED';
+            if (rocket.onComplete) rocket.onComplete(rocket);
+            return;
+          }
+          
+          // Compute Hohmann transfer parameters
+          const transfer = computeHohmannTransfer(originData.a_AU, targetData.a_AU, MU_SUN);
+          rocket.transfer = transfer;
+          rocket.t_transfer_years = transfer.t_transfer_years;
+          rocket.inward = rocket.isInward;
+          
+          // Departure angle: use planet's current angle (parking orbit offset is small)
+          const originPos = OrbitSolver.getPlanetPosition(planet, simElapsedSec);
+          rocket.departureAngle = originPos.angle;
+          
+          // Create ghost ellipse showing the transfer path
+          const segments = 40;
+          const ellipsePoints = [];
+          for (let i = 0; i <= segments; i++) {
+            const t = (i / segments) * transfer.t_transfer_years;
+            const pos = positionOnTransferEllipse(t, transfer.t_transfer_years, transfer.a_AU, transfer.e, originPos.angle, rocket.isInward);
+            ellipsePoints.push(new THREE.Vector3(pos.x_AU * rocket.scale, 0, pos.y_AU * rocket.scale));
+          }
+          // Clean up any existing ghost ellipse
+          if (rocket.ghostEllipse) {
+            RocketEngine.rocketGroup.remove(rocket.ghostEllipse);
+            rocket.ghostEllipse.geometry.dispose();
+            rocket.ghostEllipse.material.dispose();
+          }
+          const ghostGeo = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
+          const ghostMat = new THREE.LineBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.15 });
+          rocket.ghostEllipse = new THREE.Line(ghostGeo, ghostMat);
+          RocketEngine.rocketGroup.add(rocket.ghostEllipse);
+          rocket.trailPositions = [];
+          
+          // Set destination planet ref for POST_ORBIT
+          const targetPlanet = planets.find(p => p.name === rocket.target);
+          if (targetPlanet) {
+            rocket.destPlanetRef = targetPlanet;
+          }
+          
+          console.log(`🚀 ${rocket.id} departing transfer at year ${simYears.toFixed(1)} (ejection at phase=${phase.toFixed(3)}, planetAngle=${planetAngle.toFixed(3)})`);
+        }
+      }
+      
+      // After 2 full orbits without ejection, fallback: force departure
+      if (rocket.orbitPhase >= 10 * 2 * Math.PI) {
+        rocket.state = 'FLYING';
+        rocket.launchTime = simYears;
+        
+        const resolveData = (name) => {
+          if (name === 'Moon') return getPlanet('Earth');
+          return getPlanet(name);
+        };
+        const originData = resolveData(rocket.origin);
+        const targetData = resolveData(rocket.target);
+        if (!originData || !targetData) {
+          rocket.state = 'LANDED';
+          if (rocket.onComplete) rocket.onComplete(rocket);
+          return;
+        }
+        
+        const transfer = computeHohmannTransfer(originData.a_AU, targetData.a_AU, MU_SUN);
+        rocket.transfer = transfer;
+        rocket.t_transfer_years = transfer.t_transfer_years;
+        rocket.inward = rocket.isInward;
+        
+        const originPos = OrbitSolver.getPlanetPosition(planet, simElapsedSec);
+        rocket.departureAngle = originPos.angle;
+        
+        const segments = 40;
+        const ellipsePoints = [];
+        for (let i = 0; i <= segments; i++) {
+          const t = (i / segments) * transfer.t_transfer_years;
+          const pos = positionOnTransferEllipse(t, transfer.t_transfer_years, transfer.a_AU, transfer.e, originPos.angle, rocket.isInward);
+          ellipsePoints.push(new THREE.Vector3(pos.x_AU * rocket.scale, 0, pos.y_AU * rocket.scale));
+        }
+        if (rocket.ghostEllipse) {
+          RocketEngine.rocketGroup.remove(rocket.ghostEllipse);
+          rocket.ghostEllipse.geometry.dispose();
+          rocket.ghostEllipse.material.dispose();
+        }
+        const ghostGeo = new THREE.BufferGeometry().setFromPoints(ellipsePoints);
+        const ghostMat = new THREE.LineBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.15 });
+        rocket.ghostEllipse = new THREE.Line(ghostGeo, ghostMat);
+        RocketEngine.rocketGroup.add(rocket.ghostEllipse);
+        rocket.trailPositions = [];
+        
+        const targetPlanet = planets.find(p => p.name === rocket.target);
+        if (targetPlanet) {
+          rocket.destPlanetRef = targetPlanet;
+        }
+        
+        console.log(`🚀 ${rocket.id} forced departure at year ${simYears.toFixed(1)} (fallback)`);
+      }
+      return;
+    }
+    
+    // ─── FLYING: interplanetary transfer ───────────────────────────
+    if (rocket.state === 'FLYING') {
+      const elapsed = simYears - rocket.launchTime;
+      
+      // For Moon missions, use a simple straight-line animation (Earth → Moon)
+      if (rocket.target === 'Moon') {
+        const earthP = planets.find(p => p.name === 'Earth');
+        if (earthP && earthP.moonGroup) {
+          const progress = Math.min(elapsed / rocket.transfer.t_transfer_years, 1);
+          const earthPos = new THREE.Vector3(earthP.group.position.x, 0, earthP.group.position.z);
+          const moonPos = new THREE.Vector3();
+          earthP.moonGroup.getWorldPosition(moonPos);
+          rocket.mesh.position.lerpVectors(earthPos, moonPos, progress);
+        } else {
+          if (rocket.originPos) {
+            rocket.mesh.position.set(rocket.originPos.x, 0, rocket.originPos.z);
+          }
+        }
+        
+        if (elapsed >= rocket.transfer.t_transfer_years) {
+          if (rocket.trail) {
+            RocketEngine.rocketGroup.remove(rocket.trail);
+            rocket.trail.geometry.dispose();
+            rocket.trail.material.dispose();
+            rocket.trail = null;
+          }
+          if (rocket.ghostEllipse) {
+            RocketEngine.rocketGroup.remove(rocket.ghostEllipse);
+            rocket.ghostEllipse.geometry.dispose();
+            rocket.ghostEllipse.material.dispose();
+            rocket.ghostEllipse = null;
+          }
+          rocket.trailPositions = [];
+          rocket.state = 'POST_ORBIT';
+          rocket.orbitStartSimSec = simElapsedSec;
+          // Moon has no planet ref, go straight to landed
+          if (!rocket.destPlanetRef) {
+            rocket.state = 'LANDED';
+            rocket.mesh.material.color.setHex(0x00ff88);
+            console.log(`🟢 ${rocket.id} LANDED on ${rocket.target} at year ${simYears.toFixed(1)}`);
+          }
+        }
+        return;
+      }
+      
+      // Standard interplanetary mission: position on Hohmann transfer ellipse
+      const pos = positionOnTransferEllipse(
+        elapsed,
+        rocket.transfer.t_transfer_years,
+        rocket.transfer.a_AU,
+        rocket.transfer.e,
+        rocket.departureAngle,
+        rocket.inward
+      );
+      
+      // Update mesh position (convert AU to scene units)
+      rocket.mesh.position.set(
+        pos.x_AU * rocket.scale,
+        0,
+        pos.y_AU * rocket.scale
+      );
+      
+      // Update trail
+      rocket.trailPositions.push(new THREE.Vector3(
+        pos.x_AU * rocket.scale,
+        0,
+        pos.y_AU * rocket.scale
+      ));
+      if (rocket.trailPositions.length > 50) {
+        rocket.trailPositions.shift();
+      }
+      
+      if (rocket.trailPositions.length >= 2) {
+        const trailGeom = new THREE.BufferGeometry().setFromPoints(rocket.trailPositions);
+        rocket.trail.geometry.dispose();
+        rocket.trail.geometry = trailGeom;
+      }
+      
+      // Check if transfer is complete
+      if (elapsed >= rocket.transfer.t_transfer_years) {
+        // Clean up trail
+        if (rocket.trail) {
+          RocketEngine.rocketGroup.remove(rocket.trail);
+          rocket.trail.geometry.dispose();
+          rocket.trail.material.dispose();
+          rocket.trail = null;
+        }
+        // Clean up ghost ellipse
+        if (rocket.ghostEllipse) {
+          RocketEngine.rocketGroup.remove(rocket.ghostEllipse);
+          rocket.ghostEllipse.geometry.dispose();
+          rocket.ghostEllipse.material.dispose();
+          rocket.ghostEllipse = null;
+        }
+        // Clear trail positions
+        rocket.trailPositions = [];
+        rocket.state = 'POST_ORBIT';
+        rocket.orbitStartSimSec = simElapsedSec;
+        
+        // Pin to destination planet position
+        const destPlanet = rocket.destPlanetRef || planets.find(p => p.name === rocket.target);
+        if (destPlanet) {
+          rocket.mesh.position.x = destPlanet.group.position.x;
+          rocket.mesh.position.z = destPlanet.group.position.z;
+        }
+        
+        // If destination has no planet ref, just land
+        if (!rocket.destPlanetRef) {
+          rocket.state = 'LANDED';
+          rocket.mesh.material.color.setHex(0x00ff88);
+          if (rocket.onComplete) rocket.onComplete(rocket);
+          console.log(`🟢 ${rocket.id} LANDED on ${rocket.target} at year ${simYears.toFixed(1)}`);
+        }
+      }
+      return;
+    }
+    
+    // ─── POST_ORBIT: parking orbit around destination planet ───────
+    if (rocket.state === 'POST_ORBIT') {
+      const planet = rocket.destPlanetRef;
+      if (!planet) {
+        rocket.state = 'LANDED';
+        return;
+      }
+      const orbitElapsed = simElapsedSec - rocket.orbitStartSimSec;
+      const orbitAngle = orbitElapsed * PARKING_ORBIT_SPEED;
+      const parkingRadius = planet.data.size * PARKING_ORBIT_FACTOR;
+      const offsetX = Math.cos(orbitAngle) * parkingRadius;
+      const offsetZ = Math.sin(orbitAngle) * parkingRadius;
+      rocket.mesh.position.x = planet.group.position.x + offsetX;
+      rocket.mesh.position.z = planet.group.position.z + offsetZ;
+      
+      if (orbitAngle >= 2 * Math.PI) {
+        rocket.state = 'LANDED';
+        rocket.mesh.material.color.setHex(0x00ff88);
+        if (rocket.onComplete) rocket.onComplete(rocket);
+        console.log(`🟢 ${rocket.id} LANDED on ${rocket.target} at year ${simYears.toFixed(1)}`);
+      }
+    }
+  }
+};
+
+
+// ─── Scene setup ────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050510);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 5000);
+camera.position.set(0, 40, 60);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.domElement.style.touchAction = "none";
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = false;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.prepend(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(window.innerWidth, window.innerHeight);
+labelRenderer.domElement.style.position = 'absolute';
+labelRenderer.domElement.style.top = '0';
+labelRenderer.domElement.style.left = '0';
+labelRenderer.domElement.style.pointerEvents = 'none';
+labelRenderer.domElement.style.zIndex = '1';
+document.body.prepend(labelRenderer.domElement);
+
+// ─── Camera orbit controller — always locked to a target ──
+const camState = {
+  theta: 0,
+  phi: Math.PI / 3,
+  radius: 80,
+  target: null,
+  targetType: 'sun',
+  targetOffset: new THREE.Vector3(0, 0, 0),
+  isDragging: false,
+  lastMouse: { x: 0, y: 0 },
+  dragDistance: 0,
+  totalDragDist: 0
+};
+
+// Default target: a dummy at origin (sun)
+camState.target = new THREE.Object3D();
+camState.target.position.set(0, 0, 0);
+
+// World-space lock targets (children of scene, not of orbiting groups)
+const sunLockTarget = new THREE.Object3D();
+sunLockTarget.position.set(0, 0, 0);
+scene.add(sunLockTarget);
+
+const moonLockTarget = new THREE.Object3D();
+scene.add(moonLockTarget);
+
+// Pointer drag to orbit (pointer events for unified mouse+touch)
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  camState.isDragging = true;
+  camState.lastMouse.x = e.clientX;
+  camState.lastMouse.y = e.clientY;
+  camState.totalDragDist = 0;
+});
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (camState.isDragging) {
+    const dx = e.clientX - camState.lastMouse.x;
+    const dy = e.clientY - camState.lastMouse.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    camState.totalDragDist += dist;
+    camState.theta += dx * 0.005;
+    camState.phi -= dy * 0.005;
+    camState.phi = Math.max(0.05, Math.min(Math.PI - 0.05, camState.phi));
+    camState.lastMouse.x = e.clientX;
+    camState.lastMouse.y = e.clientY;
+    updateCamera();
+  }
+});
+renderer.domElement.addEventListener('pointerup', () => { camState.isDragging = false; });
+renderer.domElement.addEventListener('pointerleave', () => { camState.isDragging = false; });
+renderer.domElement.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const zoomSpeed = 2;
+  camState.radius = Math.max(5, Math.min(600, camState.radius + e.deltaY * 0.1 * zoomSpeed));
+  zoomSlider.value = camState.radius;
+  zoomDisplay.textContent = camState.radius.toFixed(1);
+  updateCamera();
+}, { passive: false });
+
+function updateCamera() {
+  if (!camState.target) return;
+  const target = camState.target.position.clone().add(camState.targetOffset);
+  camera.position.x = target.x + camState.radius * Math.sin(camState.phi) * Math.cos(camState.theta);
+  camera.position.y = target.y + camState.radius * Math.cos(camState.phi);
+  camera.position.z = target.z + camState.radius * Math.sin(camState.phi) * Math.sin(camState.theta);
+  camera.lookAt(target);
+}
+
+function lockToObject(obj, type, offset) {
+  camState.target = obj;
+  camState.targetType = type || 'object';
+  camState.targetOffset.copy(offset || new THREE.Vector3(0, 0, 0));
+}
+
+// Initial camera position from camState
+updateCamera();
+
+// ─── Star field ──────────────────────────────────────────────
+function createStars() {
+  const count = 8000;
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 400 + Math.random() * 600;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i*3+2] = r * Math.cos(phi);
+    sizes[i] = 0.5 + Math.random() * 1.5;
+    const c = 0.6 + Math.random() * 0.4;
+    const tint = Math.random();
+    if (tint < 0.1) { // reddish
+      colors[i*3] = c; colors[i*3+1] = c*0.7; colors[i*3+2] = c*0.5;
+    } else if (tint < 0.2) { // bluish
+      colors[i*3] = c*0.6; colors[i*3+1] = c*0.7; colors[i*3+2] = c;
+    } else {
+      colors[i*3] = c; colors[i*3+1] = c; colors[i*3+2] = c;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.8,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+  return new THREE.Points(geo, mat);
+}
+scene.add(createStars());
+
+// ─── Sun ─────────────────────────────────────────────────────
+const sunGroup = new THREE.Group();
+scene.add(sunGroup);
+
+const sunGeo = new THREE.SphereGeometry(5, 48, 48);
+const sunMat = new THREE.MeshStandardMaterial({
+  color: 0xffdd55,
+  emissive: 0xffaa22,
+  emissiveIntensity: 2.5,
+  roughness: 0.3,
+});
+const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+sunMesh.frustumCulled = false;
+sunGroup.add(sunMesh);
+sunMesh.userData = { isClickTarget: true, isSun: true };
+sunMesh.name = 'sun-mesh';
+
+// Sun glow sprite
+const glowCanvas = document.createElement('canvas');
+glowCanvas.width = 512;
+glowCanvas.height = 512;
+const ctx = glowCanvas.getContext('2d');
+const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+grad.addColorStop(0, 'rgba(255,220,80,1)');
+grad.addColorStop(0.1, 'rgba(255,180,50,0.8)');
+grad.addColorStop(0.3, 'rgba(255,140,30,0.3)');
+grad.addColorStop(0.6, 'rgba(200,100,20,0.08)');
+grad.addColorStop(1, 'rgba(0,0,0,0)');
+ctx.fillStyle = grad;
+ctx.fillRect(0, 0, 512, 512);
+const glowTexture = new THREE.CanvasTexture(glowCanvas);
+const glowMat = new THREE.SpriteMaterial({
+  map: glowTexture,
+  blending: THREE.AdditiveBlending,
+  transparent: true,
+  opacity: 0.7,
+  depthWrite: false,
+});
+const glowSprite = new THREE.Sprite(glowMat);
+glowSprite.scale.set(12, 12, 1);
+sunGroup.add(glowSprite);
+
+// Outer glow ring (a second larger sprite)
+const glowMat2 = new THREE.SpriteMaterial({
+  map: glowTexture,
+  blending: THREE.AdditiveBlending,
+  transparent: true,
+  opacity: 0.25,
+  depthWrite: false,
+});
+const glowSprite2 = new THREE.Sprite(glowMat2);
+glowSprite2.scale.set(16, 16, 1);
+sunGroup.add(glowSprite2);
+
+// Ambient + directional so planets have shading
+const ambientLight = new THREE.AmbientLight(0x222244, 0.6);
+scene.add(ambientLight);
+
+const sunLight = new THREE.PointLight(0xffdd99, 2.0, 0, 0);
+sunLight.position.set(0, 0, 0);
+scene.add(sunLight);
+
+// Additional directional light for fill
+const fillLight = new THREE.DirectionalLight(0x445577, 0.4);
+fillLight.position.set(1, 1, 0);
+scene.add(fillLight);
+
+const raycasterTargets = [];
+// Sun will be added to raycasterTargets after creation
+raycasterTargets.push(sunMesh);
+
+// ─── Planet data ─────────────────────────────────────────────
+// Reference: Earth orbital period = 60s
+// Periods scaled from Earth years (Earth = 1 year = 60s)
+// PLANET_DATA is now derived from PLANET_CATALOG (see CelestialData module above).
+
+const planets = [];
+const orbitLines = [];
+
+// ─── Create orbit paths ──────────────────────────────────────
+PLANET_DATA.forEach(data => {
+  const points = [];
+  const segments = 64;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    points.push(new THREE.Vector3(
+      Math.cos(angle) * data.orbitRadius,
+      0,
+      Math.sin(angle) * data.orbitRadius
+    ));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(points);
+  const mat = new THREE.LineBasicMaterial({
+    color: data.color,
+    transparent: true,
+    opacity: 0.06,
+    depthWrite: false,
+  });
+  const line = new THREE.Line(geo, mat);
+  scene.add(line);
+  orbitLines.push(line);
+});
+
+// ─── Create planets ──────────────────────────────────────────
+
+PLANET_DATA.forEach((data, index) => {
+  const group = new THREE.Group();
+  
+  // Planet mesh
+  const size = data.size;
+  const geo = new THREE.SphereGeometry(size, 32, 32);
+  const mat = new THREE.MeshStandardMaterial({
+    color: data.color,
+    roughness: 0.5,
+    metalness: 0.1,
+    emissive: data.color,
+    emissiveIntensity: 0.05,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  group.add(mesh);
+
+  // Click target (slightly larger invisible sphere for easier clicking)
+  const clickGeo = new THREE.SphereGeometry(size * 2.2, 16, 16);
+  const clickMat = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const clickMesh = new THREE.Mesh(clickGeo, clickMat);
+  clickMesh.frustumCulled = false;
+  group.add(clickMesh);
+  clickMesh.userData = { planetIndex: index, isClickTarget: true };
+  raycasterTargets.push(clickMesh);
+
+  // Saturn ring
+  if (data.hasRing) {
+    const ringGeo = new THREE.RingGeometry(size * 1.4, size * 2.6, 48);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xccbb99,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.frustumCulled = false;
+    ring.rotation.x = Math.PI / 2.2;
+    ring.position.x = 0;
+    group.add(ring);
+
+    // Inner ring
+    const ringGeo2 = new THREE.RingGeometry(size * 1.1, size * 1.35, 32);
+    const ringMat2 = new THREE.MeshBasicMaterial({
+      color: 0x998877,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+    });
+    const ring2 = new THREE.Mesh(ringGeo2, ringMat2);
+  ring2.frustumCulled = false;
+    ring2.rotation.x = Math.PI / 2.2;
+    group.add(ring2);
+  }
+
+  // Uranus tilt
+  if (data.tilted) {
+    group.rotation.z = 1.71; // ~98 degrees
+  }
+
+  // Tilt (axial rotation axis)
+  if (data.tilt) {
+    mesh.rotation.z = data.tilt;
+  }
+
+  // Venus retrograde — we'll handle in animation
+  if (data.retrograde) {
+    group.userData.retrograde = true;
+  }
+
+  // Moon for Earth
+  let moonGroup = null;
+  if (data.hasMoon) {
+    moonGroup = new THREE.Group();
+    const moonGeo = new THREE.SphereGeometry(0.22, 16, 16);
+    const moonMat = new THREE.MeshStandardMaterial({
+      color: 0xcccccc,
+      roughness: 0.8,
+    });
+    const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+  moonMesh.frustumCulled = false;
+    moonMesh.position.x = 0.0;
+    moonMesh.userData = { type: 'moon', isClickTarget: true, isMoon: true, parentPlanetIndex: index };
+    raycasterTargets.push(moonMesh);
+    moonGroup.add(moonMesh);
+    
+    // Moon click target
+    const moonClickGeo = new THREE.SphereGeometry(0.5, 8, 8);
+    const moonClickMat = new THREE.MeshBasicMaterial({
+      transparent: true, opacity: 0, depthWrite: false,
+    });
+    const moonClickMesh = new THREE.Mesh(moonClickGeo, moonClickMat);
+  moonClickMesh.frustumCulled = false;
+    moonClickMesh.position.x = 0.0;
+    moonClickMesh.userData = { isClickTarget: true, isMoon: true, parentPlanetIndex: index };
+    moonGroup.add(moonClickMesh);
+    raycasterTargets.push(moonClickMesh);
+    
+    group.add(moonGroup);
+  }
+
+  // Position (deterministic initAngle from PLANET_CATALOG — the single source of truth)
+  const startAngle = PLANET_CATALOG[index].initAngle;
+  group.position.x = Math.cos(startAngle) * data.orbitRadius;
+  group.position.z = Math.sin(startAngle) * data.orbitRadius;
+  
+  scene.add(group);
+
+  // Label
+  const labelDiv = document.createElement('div');
+  labelDiv.textContent = data.name;
+  labelDiv.style.color = '#fff';
+  labelDiv.style.fontSize = '11px';
+  labelDiv.style.fontWeight = '500';
+  labelDiv.style.textShadow = 'none';
+  labelDiv.style.letterSpacing = '1px';
+  labelDiv.style.opacity = '0.6';
+  labelDiv.style.pointerEvents = 'none';
+  labelDiv.style.fontFamily = "'Segoe UI', system-ui, sans-serif";
+  labelDiv.style.transition = 'opacity 0.3s';
+  
+  const label = new CSS2DObject(labelDiv);
+  label.position.set(0, -(size * 1.5) - 0.8, 0);
+  group.add(label);
+
+  planets.push({
+    group,
+    mesh,
+    data,
+    name: data.name,
+    index,
+    initAngle: startAngle,
+    moonGroup,
+    clickMesh,
+    labelDiv,
+  });
+});
+
+
+// ─── Initialize RocketEngine ────────────────────────────
+try { RocketEngine.init(scene); } catch(e) { console.error('RocketEngine init failed:', e); }
+
+// ─── Click / raycast interaction ─────────────────────────────
+// Info panel removed — camera lock replaces click-to-focus
+/* closeBtn.addEventListener('click', () => {
+  infoPanel.classList.remove('visible');
+});
+
+function showPlanetInfo(index) {
+  const p = planets[index];
+  if (!p) return;
+  planetName.textContent = p.data.name;
+  planetFact.textContent = p.data.fact;
+  infoPanel.classList.add('visible');
+  
+  // Highlight label
+  planets.forEach(pl => {
+    pl.labelDiv.style.opacity = '0.4';
+    pl.labelDiv.style.color = '#888';
+  });
+  p.labelDiv.style.opacity = '1';
+  p.labelDiv.style.color = '#fff';
+} */
+
+renderer.domElement.addEventListener('click', (event) => {
+  // Ignore click if this was a drag (pointer moved more than 5px)
+  if (camState.totalDragDist >= 10) return;
+  
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+  
+  const intersects = raycaster.intersectObjects(raycasterTargets);
+  if (intersects.length > 0) {
+    const hit = intersects[0].object;
+    if (hit.userData && hit.userData.isClickTarget) {
+      if (hit.userData.isSun) {
+        // Lock to Sun
+        lockToObject(sunLockTarget, 'sun');
+        document.getElementById('selected-info').textContent = '☀ Sun';
+        document.getElementById('selected-info').style.display = 'block';
+      } else if (hit.userData.isMoon) {
+        // Lock to Moon — use world-space tracking target
+        const parentPlanet = planets[hit.userData.parentPlanetIndex];
+        if (parentPlanet && parentPlanet.moonGroup) {
+          lockToObject(moonLockTarget, 'moon');
+          document.getElementById('selected-info').textContent = '🌙 Moon';
+          document.getElementById('selected-info').style.display = 'block';
+        }
+      } else if (hit.userData.planetIndex !== undefined) {
+        // Lock to planet
+        lockToObject(planets[hit.userData.planetIndex].group, 'planet');
+        document.getElementById('selected-info').textContent = planets[hit.userData.planetIndex].data.name;
+        document.getElementById('selected-info').style.display = 'block';
+      }
+    }
+  }
+  
+  // Check if we clicked a rocket
+  const rocketMeshes = [];
+  RocketEngine.activeRockets.forEach(r => { if (r.mesh) rocketMeshes.push(r.mesh); });
+  const rocketHits = raycaster.intersectObjects(rocketMeshes);
+  if (rocketHits.length > 0 && rocketHits[0].distance < (intersects.length > 0 ? intersects[0].distance : Infinity)) {
+    const rocket = RocketEngine.activeRockets.find(r => r.mesh === rocketHits[0].object);
+    if (rocket) {
+      lockToObject(rocket.mesh, 'rocket');
+      document.getElementById('selected-info').textContent = '🚀 ' + rocket.origin + '→' + rocket.target;
+      document.getElementById('selected-info').style.display = 'block';
+    }
+  }
+});
+
+// ─── UI controls ─────────────────────────────────────────────
+const speedSlider = document.getElementById('speed-slider');
+const speedDisplay = document.getElementById('speed-display');
+const zoomSlider = document.getElementById('zoom-slider');
+const zoomDisplay = document.getElementById('zoom-display');
+zoomDisplay.textContent = parseFloat(zoomSlider.value).toFixed(1);
+camState.radius = parseFloat(zoomSlider.value);
+
+speedSlider.addEventListener('input', () => {
+  const val = parseFloat(speedSlider.value);
+  if (val <= 0) {
+    TimeKeeper.speedMultiplier = (val + 100) / 100;
+  } else {
+    TimeKeeper.speedMultiplier = Math.pow(10, val / 50);
+  }
+  if (TimeKeeper.speedMultiplier < 0.01) {
+    speedDisplay.textContent = '0.0×';
+  } else if (TimeKeeper.speedMultiplier < 10) {
+    speedDisplay.textContent = TimeKeeper.speedMultiplier.toFixed(1) + '×';
+  } else {
+    speedDisplay.textContent = TimeKeeper.speedMultiplier.toFixed(0) + '×';
+  }
+  TimeKeeper.paused = (TimeKeeper.speedMultiplier === 0);
+});
+
+zoomSlider.addEventListener('input', () => {
+  const zoomVal = parseFloat(zoomSlider.value);
+  camState.radius = zoomVal;
+  zoomDisplay.textContent = zoomVal.toFixed(1);
+  updateCamera();
+});
+
+
+  // Initialize TimeKeeper state from slider position
+  const initVal = parseFloat(speedSlider.value);
+  if (initVal <= 0) {
+    TimeKeeper.speedMultiplier = (initVal + 100) / 100;
+  } else {
+    TimeKeeper.speedMultiplier = Math.pow(10, initVal / 50);
+  }
+  if (TimeKeeper.speedMultiplier < 0.01) {
+    speedDisplay.textContent = '0.0×';
+  } else if (TimeKeeper.speedMultiplier < 10) {
+    speedDisplay.textContent = TimeKeeper.speedMultiplier.toFixed(1) + '×';
+  } else {
+    speedDisplay.textContent = TimeKeeper.speedMultiplier.toFixed(0) + '×';
+  }
+  TimeKeeper.paused = (TimeKeeper.speedMultiplier === 0);
+  // Year slider for scrubbing
+  const yearSlider = document.getElementById('year-slider');
+  const yearDisplay = document.getElementById('year-display');
+  let isScrubbing = false;
+
+  yearSlider.addEventListener('input', () => {
+    const val = parseFloat(yearSlider.value);
+    TimeKeeper.scrubYear(val);
+    isScrubbing = true;
+    // Update displays
+    const simYears = TimeKeeper.getSimYears();
+    yearDisplay.textContent = 'Year: ' + simYears.toFixed(1);
+    if (TimeKeeper.speedMultiplier < 0.01) {
+      speedDisplay.textContent = '0.0×';
+    } else if (TimeKeeper.speedMultiplier < 10) {
+      speedDisplay.textContent = TimeKeeper.speedMultiplier.toFixed(1) + '×';
+    } else {
+      speedDisplay.textContent = TimeKeeper.speedMultiplier.toFixed(0) + '×';
+    }
+  });
+
+  yearSlider.addEventListener('change', () => {
+    isScrubbing = false;
+    TimeKeeper.scrubbing = false;
+    // Reset lastWallTime to avoid time jump
+    TimeKeeper.lastWallTime = null;
+  });
+
+
+// Keyboard shortcut: space to toggle auto-rotate
+// Keyboard shortcut removed — auto-rotate not needed with new camera system
+/* document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !e.target?.matches?.('input')) {
+    e.preventDefault();
+    controls.autoRotate = !controls.autoRotate;
+  }
+}); */
+
+// ─── Ambient particles (dust) ────────────────────────────────
+function createDust() {
+  const count = 1500;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 5 + Math.random() * 60;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3+1] = (Math.random() - 0.5) * 20;
+    positions[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    color: 0x8888ff,
+    size: 0.08,
+    transparent: true,
+    opacity: 0.15,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+  return new THREE.Points(geo, mat);
+}
+scene.add(createDust());
+
+// ─── Animation loop ──────────────────────────────────────────
+let startTime = performance.now();
+let lastTimestamp = 0;
+
+function animate(timestamp) {
+  requestAnimationFrame(animate);
+  
+  // Update TimeKeeper at the START of each frame
+  TimeKeeper.update(timestamp);
+  
+  const delta = lastTimestamp ? (timestamp - lastTimestamp) / 1000 : 0.016;
+  lastTimestamp = timestamp;
+  const elapsed = (timestamp - startTime) / 1000;
+  
+  // Sun rotation + pulse
+  sunMesh.rotation.y += delta * 0.05;
+  const pulse = 1 + Math.sin(elapsed * 0.3) * 0.01;
+  sunMesh.scale.set(pulse, pulse, pulse);
+  glowSprite.material.opacity = 0.65 + Math.sin(elapsed * 0.2) * 0.05;
+
+  // Update planets from TimeKeeper time
+  const simElapsedSec = TimeKeeper.getSimElapsedSec();
+  planets.forEach(p => {
+    // Use OrbitSolver to compute position from simulation time
+    const pos = OrbitSolver.getPlanetPosition(p, simElapsedSec);
+    const dir = p.data.retrograde ? -1 : 1;
+    p.group.position.x = pos.x;
+    p.group.position.z = pos.z;
+    
+    // Axial rotation
+    p.mesh.rotation.y = (simElapsedSec / p.data.period) * Math.PI * 2 * 0.5 * dir;
+
+    // Moon orbit
+    if (p.moonGroup) {
+      // Moon orbits Earth ~13 times per Earth year
+      // Use TimeKeeper time so it respects pause/scrub
+      const moonAngle = (simElapsedSec / p.data.period) * Math.PI * 2 * 13;
+      p.moonGroup.position.x = Math.cos(moonAngle) * 3.0;
+      p.moonGroup.position.z = Math.sin(moonAngle) * 3.0;
+      // Update world-space lock target for camera tracking
+      if (moonLockTarget) {
+        moonLockTarget.position.copy(p.moonGroup.getWorldPosition(new THREE.Vector3()));
+      }
+    }
+
+    // Saturn ring rotation
+    if (p.data.hasRing) {
+      const ring = p.group.children.find(c => c.isMesh && c.geometry.type === 'RingGeometry');
+      if (ring) ring.rotation.z += delta * 0.1;
+    }
+  });
+
+  updateCamera();
+  
+  // Update year display
+  const simYears = TimeKeeper.getSimYears();
+  yearDisplay.textContent = 'Year: ' + simYears.toFixed(1);
+  
+  // Clear rocket trails when scrubbing so old trails don't persist going backwards
+  if (TimeKeeper.scrubbing) {
+    // Dispose all mesh geometries and materials, remove from group
+    RocketEngine.activeRockets.forEach(r => {
+      if (r.mesh) { RocketEngine.rocketGroup.remove(r.mesh); r.mesh.geometry.dispose(); r.mesh.material.dispose(); r.mesh = null; }
+      if (r.trail) { RocketEngine.rocketGroup.remove(r.trail); r.trail.geometry.dispose(); r.trail.material.dispose(); r.trail = null; }
+      if (r.ghostEllipse) { RocketEngine.rocketGroup.remove(r.ghostEllipse); r.ghostEllipse.geometry.dispose(); r.ghostEllipse.material.dispose(); r.ghostEllipse = null; }
+    });
+    // Also clean completed missions
+    RocketEngine.completedMissions.forEach(r => {
+      if (r.mesh) { RocketEngine.rocketGroup.remove(r.mesh); r.mesh.geometry.dispose(); r.mesh.material.dispose(); r.mesh = null; }
+      if (r.trail) { RocketEngine.rocketGroup.remove(r.trail); r.trail.geometry.dispose(); r.trail.material.dispose(); r.trail = null; }
+      if (r.ghostEllipse) { RocketEngine.rocketGroup.remove(r.ghostEllipse); r.ghostEllipse.geometry.dispose(); r.ghostEllipse.material.dispose(); r.ghostEllipse = null; }
+    });
+    // Reset all missions to pending
+    const allMissions = RocketEngine.completedMissions.concat(RocketEngine.activeRockets);
+    allMissions.forEach(m => {
+      m.state = 'PENDING';
+      m.mesh = null;
+      m.trail = null;
+      m.ghostEllipse = null;
+      m.trailPositions = [];
+      m.launchTime = null;
+      m.transfer = null;
+      m.originPlanetRef = null;
+      m.destPlanetRef = null;
+      m.parkingRadiusScene = 0;
+      m.parkingRadiusAU = 0;
+      m.orbitStartSimSec = 0;
+    });
+    RocketEngine.pendingMissions = RocketEngine.pendingMissions.concat(allMissions);
+    RocketEngine.activeRockets = [];
+    RocketEngine.completedMissions = [];
+  }
+  
+  // Update RocketEngine — launch and animate rocket flights
+  RocketEngine.update(simYears, simElapsedSec, planets, scene);
+  
+  // Camera is always locked — updateCamera() already called above
+  // No need to manually follow — lockToObject handles it
+  
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+}
+
+
+
+// Validate TransferSolver at startup
+validateTransferSolver();
+requestAnimationFrame(animate);
+
+// ─── Resize handler ──────────────────────────────────────────
+window.addEventListener('resize', () => {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+});
+
+// ─── Start ───────────────────────────────────────────────────
+console.log(`🚀 RocketEngine: ${RocketEngine.missionCount} missions generated (${RocketEngine.pendingMissions.length} pending, ${RocketEngine.completedMissions.length} completed)`);
+console.log('✦ Solar System — Chisel');
+console.log('🪐 Click a planet to lock camera');
+console.log('🔄 Drag to orbit · Click to lock');
+
+// Help overlay after a moment
+setTimeout(() => {
+  const help = document.createElement('div');
+  help.style.cssText = `
+    position:fixed; bottom:100px; left:50%; transform:translateX(-50%);
+    font-size:12px; opacity:0.15; letter-spacing:1px;
+    z-index:5; pointer-events:none; text-align:center;
+    transition:opacity 2s; font-family:'Segoe UI',sans-serif;
+  `;
+  help.textContent = 'Drag to orbit · Zoom slider · Click planets to lock camera';
+  document.body.appendChild(help);
+  setTimeout(() => { help.style.opacity = '0'; }, 6000);
+}, 3000);
+
+// ─── Debug globals (console access) ──────────────────────────
+window.COLONY_RULES = COLONY_RULES;
+window.ColonyEngine = ColonyEngine;
+window.RocketEngine = RocketEngine;
+window.SeedEngine = SeedEngine;
+window.PLANETS = PLANETS;
+window.PLANET_BY_NAME = PLANET_BY_NAME;
+window.TransferSolver = {
+  computeHohmannTransfer,
+  computePhaseAngle,
+  computeLaunchWindow,
+  positionOnTransferEllipse,
+  solveKepler,
+  validateTransferSolver
+};
+window.MU_SUN = MU_SUN;
+
+</script>
+</body>
+</html>
