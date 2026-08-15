@@ -356,33 +356,49 @@ const DEG_TO_RAD = Math.PI / 180;
 const AU_TO_SCENE = 16;      // 1 AU = 16 scene units (Earth orbitRadius)
 const SCENE_YEAR_SEC = 60;   // 1 sim year = 60 sim seconds (Earth scene period)
 
+// Kepler orbital elements: e (eccentricity), omega_p (argument of perihelion, rad),
+// Omega (longitude of ascending node, rad), inc (inclination to ecliptic, rad).
+// Values are J2000 (NASA/JPL) — real astronomical values, fixed across seeds.
+// initAngle (initial MEAN ANOMALY at t=0) is per-seed random, so the layout
+// (planet starting positions) varies with `?seed=word`, but the orbit SHAPE
+// (e, inc) and canonical orientation (omega_p, Omega) are solar-system-accurate.
+const DEG = Math.PI / 180;
 const PLANET_CATALOG = [
   { name: "Mercury", a_AU: 0.387,  period_years: 0.241,  color: 0xb0a090, size: 0.6,  tilt: 0.03,
+    e: 0.2056, omega_p: 29.124*DEG, Omega: 48.331*DEG, inc: 7.005*DEG,
     fact: "Mercury is the smallest planet and orbits the Sun every 88 Earth days. A year on Mercury is just 88 days, but a day lasts 59 Earth days." },
   { name: "Venus",   a_AU: 0.723,  period_years: 0.615,  color: 0xe8c880, size: 0.9,  tilt: 2.64,
+    e: 0.0068, omega_p: 54.884*DEG, Omega: 76.680*DEG, inc: 3.395*DEG,
     fact: "Venus rotates backwards (retrograde) compared to most planets. It's the hottest planet at 462\u00b0C \u2014 hot enough to melt lead!" },
   { name: "Earth",   a_AU: 1.0,    period_years: 1.0,    color: 0x4499dd, size: 1.0,  tilt: 0.41, hasMoon: true,
-    fact: "Earth is the only known planet with liquid water on its surface and the only one known to harbor life. About 71% is covered in water." },
+    e: 0.0167, omega_p: 114.208*DEG, Omega: 348.740*DEG, inc: 0.000,
+    fact: "Earth is the only known planet with liquid water on its surface and the only one known to harbor life. About 71% is covered by water." },
   { name: "Mars",    a_AU: 1.524,  period_years: 1.881,  color: 0xcc5533, size: 0.75, tilt: 0.44,
+    e: 0.0934, omega_p: 286.502*DEG, Omega: 49.558*DEG, inc: 1.850*DEG,
     fact: "Mars has the tallest mountain in the solar system \u2014 Olympus Mons, at 21.9 km high. That's 2.5x the height of Everest!" },
   { name: "Jupiter", a_AU: 5.203,  period_years: 11.862, color: 0xddbb99, size: 2.4,  tilt: 0.05,
+    e: 0.0489, omega_p: 273.867*DEG, Omega: 100.464*DEG, inc: 1.303*DEG,
     fact: "Jupiter is the largest planet \u2014 all other planets could fit inside it. Its Great Red Spot is a storm larger than Earth that has raged for centuries." },
   { name: "Saturn",  a_AU: 9.537,  period_years: 29.457, color: 0xeeddbb, size: 2.0,  tilt: 0.47, hasRing: true,
+    e: 0.0565, omega_p: 339.392*DEG, Omega: 113.665*DEG, inc: 2.485*DEG,
     fact: "Saturn's ring system spans up to 282,000 km but is only about 10 meters thick. It's made of 99.9% ice and trace amounts of rock." },
   { name: "Uranus",  a_AU: 19.191, period_years: 84.011, color: 0x88ccdd, size: 1.6,  tilt: 1.71, tilted: true,
+    e: 0.0457, omega_p: 96.991*DEG, Omega: 74.006*DEG, inc: 0.773*DEG,
     fact: "Uranus rotates on its side with an axial tilt of 98\u00b0, likely from a massive ancient collision. It also has the coldest atmosphere at -224\u00b0C." },
   { name: "Neptune", a_AU: 30.069, period_years: 164.8,  color: 0x3366cc, size: 1.5,  tilt: 0.49,
+    e: 0.0113, omega_p: 276.336*DEG, Omega: 131.784*DEG, inc: 1.770*DEG,
     fact: "Neptune has the strongest winds of any planet \u2014 reaching 2,100 km/h. It was the first planet predicted mathematically before being observed." }
 ].map((p, i) => {
   const period_sec = p.period_years * EARTH_PERIOD_SEC;
   return {
     ...p,
-    a_km: p.a_AU * AU_TO_KM,                 // derived — physics stays consistent
-    period_sec,                               // derived
-    omega: 2 * Math.PI / period_sec,          // derived
-    initAngle: layoutRng() * Math.PI * 2,     // derived from seeded PRNG
-    orbitRadius: p.a_AU * AU_TO_SCENE,        // visual derived from physics
-    period: p.period_years * SCENE_YEAR_SEC,  // visual derived from physics
+    a_km: p.a_AU * AU_TO_KM,                       // derived — physics stays consistent
+    period_sec,                                    // derived
+    omega: 2 * Math.PI / period_sec,               // derived (mean motion, rad/sec)
+    n_years: 2 * Math.PI / p.period_years,         // derived (mean motion, rad/year)
+    initAngle: layoutRng() * Math.PI * 2,          // derived from seeded PRNG (initial MEAN ANOMALY at t=0)
+    orbitRadius: p.a_AU * AU_TO_SCENE,             // visual derived (mean orbit radius, scene units)
+    period: p.period_years * SCENE_YEAR_SEC,       // visual derived (period in sim seconds)
     index: i
   };
 });
@@ -397,6 +413,7 @@ const PLANET_BY_NAME = Object.fromEntries(PLANETS.map(p => [p.name.toLowerCase()
 // orbitRadius & period are derived from the physics fields above, so the
 // visuals can never drift from the physics.
 const PLANET_DATA = PLANET_CATALOG.map(p => ({
+  index: p.index,
   name: p.name, color: p.color, size: p.size,
   orbitRadius: p.orbitRadius, period: p.period, tilt: p.tilt,
   hasMoon: p.hasMoon, hasRing: p.hasRing, tilted: p.tilted, retrograde: p.retrograde,
@@ -474,19 +491,120 @@ const TimeKeeper = {
 // Computes planet positions from simulation time.
 // Uses planet.data for orbital parameters, planet.initAngle for starting angle.
 
+// ─── MODULE D-bis: Kepler helpers (elliptical + inclination) ─────
+// Planet orbits are Keplerian ellipses with real astronomical eccentricities,
+// argument-of-perihelion (omega_p), ascending-node longitude (Omega), and
+// inclination (inc). The mean longitude advances uniformly with `omega`
+// (= 2π/T), but the TRUE longitude advances NON-uniformly —惑 fast near
+// periapsis (Kepler's 2nd law) and slow near apoapsis. initAngle is the
+// initial MEAN anomaly at t=0 (per-seed random).
+//
+// Coordinate frame (Three.js): the ecliptic lies in THING x-z plane;
+// y-axis is the ecliptic pole (up). Orbital inclination tilts the orbit
+// out of the ecliptic plane so a planet's `.y` (height above ecliptic)
+// becomes non-zero. The ascending-node longitude (Omega) rotates the
+// orbit's line-of-nodes around the ecliptic pole.
+function keplerTrueProperties(planet, simElapsedSec) {
+  // Accept either:
+  //   (a) a PLANET_CATALOG row directly (has .e, .omega_p, .Omega, .inc, .omega,
+  //       .initAngle, .a_AU) — used by ColonyEngine callers; OR
+  //   (b) a runtime planets[] wrapper ({data: PLANET_DATA[i], index}) — used by
+  //       the per-frame mesh update. Resolve to the catalog row via index.
+  const p = (planet && planet.e != null) ? planet : PLANET_CATALOG[(planet && planet.index != null) ? planet.index : (planet && planet.data && planet.data.index)];
+  if (!p) return { x_AU: 0, y_AU: 0, z_AU: 0, r_AU: 0, nu_rad: 0, E_rad: 0, M_rad: 0, trueEclipticLongitude: 0 };
+  // Mean anomaly M = initAngle + omega * t (uniform advance of mean longitude)
+  const dir = (planet && planet.data && planet.data.retrograde) ? -1 : (p.retrograde ? -1 : 1);
+  const M = ((p.initAngle + dir * p.omega * simElapsedSec) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+  const E = solveKepler(M, p.e);
+  const nu = trueAnomaly(E, p.e);
+  const r_AU = p.a_AU * (1 - p.e * Math.cos(E));   // heliocentric radius in AU
+  // Position in orbital plane; periapsis along +x_local, ν measured positively:
+  const x_local = r_AU * Math.cos(nu);
+  const y_local = r_AU * Math.sin(nu);
+  // Apply argument-of-perihelion (rotate around orbital z-axis) — places
+  // periapsis at ωp measured from the ascending node:
+  const x_op = x_local * Math.cos(p.omega_p) - y_local * Math.sin(p.omega_p);
+  const y_op = x_local * Math.sin(p.omega_p) + y_local * Math.cos(p.omega_p);
+  // Apply inclination (tilt around the ascending-node direction = +x_axis
+  // after the ωp rotation): the orbital y_op component moves partially
+  // "out of the ecliptic" (into THING .y):
+  const x_inc = x_op;
+  const y_inc = y_op * Math.cos(p.inc);
+  const z_inc = y_op * Math.sin(p.inc);    // ecliptic-pole component (THREE .y)
+  // Apply ascending-node longitude (rotate around ecliptic-pole = THING .y
+  // axis). Note: ecliptic plane is THREE x-z, so rotation around the +y axis
+  // maps (x, z) ↔ (z, -x) by the standard sin/cos angles. We apply the
+  // rotation BEFORE swapping to Thingy's y/z axes to keep the math clean:
+  //    "Astro frame": x_ecl = x_along_node, y_ecl = y_ecliptic, z_ecl = z_pole.
+  // After R_z(Ω) (standard astronomy with z= pole): x_ecl' = x cos Ω − y sin Ω
+  //                                              y_ecl' = x sin Ω + y cos Ω
+  //                                              z_ecl' = z (unchanged; this is the pole)
+  const cosO = Math.cos(p.Omega), sinO = Math.sin(p.Omega);
+  const Xe = x_inc * cosO - y_inc * sinO;    // ecliptic x (astro)
+  const Ye = x_inc * sinO + y_inc * cosO;    // ecliptic z (astro) — will map to THREE.z
+  const Ze = z_inc;                          // ecliptic pole — will map to THREE.y
+  // Map astro (Xe, Ye, Ze) into THREE: x=Xe, z=Ye, y=Ze.
+  // Return in AU (caller× AU_TO_SCENE for visual):
+  const trueEclipticLongitude = Math.atan2(Ye, Xe) % (2*Math.PI);
+  return {
+    x_AU: Xe,    // astro +X (ecliptic)
+    y_AU: Ze,    // orbital-pole component
+    z_AU: Ye,    // astro ecliptic Z (depth)
+    r_AU,
+    nu_rad: nu,
+    E_rad: E,
+    M_rad: M,
+    trueEclipticLongitude  // true heliocentric longitude in ecliptic (atan2 of x,z)
+  };
+}
+
+// ─── MODULE D: OrbitSolver ──────────────────────────────────────
+// Computes planet positions from simulation time using Keplerian kinematics
+// (Kepler's equation solved each tick; inclination tilts orbit out of the
+// ecliptic plane so .y becomes non-zero).  Visual scale (AU_TO_SCENE) is
+// applied here so the meshes can be set directly with the output.
+
 const OrbitSolver = {
   getPlanetPosition(planet, simElapsedSec) {
-    const dir = planet.data.retrograde ? -1 : 1;
-    const angle = planet.initAngle + dir * (2 * Math.PI / planet.data.period) * simElapsedSec;
+    const k = keplerTrueProperties(planet, simElapsedSec);
     return {
-      x: Math.cos(angle) * planet.data.orbitRadius,
-      z: Math.sin(angle) * planet.data.orbitRadius,
-      angle: angle
+      x: k.x_AU * AU_TO_SCENE,         // scene x (THREE.x)
+      y: k.y_AU * AU_TO_SCENE,         // scene y (above ecliptic — was 0 when e=0,inc=0)
+      z: k.z_AU * AU_TO_SCENE,         // scene z (THREE.z)
+      angle: k.trueEclipticLongitude,
+      r_scene: k.r_AU * AU_TO_SCENE,
+      nu_rad: k.nu_rad,
+      r_AU: k.r_AU
     };
   },
   getPlanetAngle(planet, simElapsedSec) {
-    const dir = planet.data.retrograde ? -1 : 1;
-    return planet.initAngle + dir * (2 * Math.PI / planet.data.period) * simElapsedSec;
+    // true heliocentric ecliptic longitude (radians, 0..2π) — for the launch
+    // window finder we want the PLANET's TRUE direction from the Sun,
+    // not the mean-anomaly rate.
+    return keplerTrueProperties(planet, simElapsedSec).trueEclipticLongitude;
+  },
+  getPlanetEclipticRadiusAU(planet, simElapsedSec) {
+    return keplerTrueProperties(planet, simElapsedSec).r_AU;
+  },
+  // Get a point on the planet's elliptical orbit in the inclined ecliptic frame
+  // at a given true anomaly ν (no time dependence — for drawing the orbit line).
+  getOrbitPointAU(planet, nu) {
+    const r_AU = planet.a_AU * (1 - planet.e * planet.e) / (1 + planet.e * Math.cos(nu));
+    const x_local = r_AU * Math.cos(nu);
+    const y_local = r_AU * Math.sin(nu);
+    const x_op = x_local * Math.cos(planet.omega_p) - y_local * Math.sin(planet.omega_p);
+    const y_op = x_local * Math.sin(planet.omega_p) + y_local * Math.cos(planet.omega_p);
+    const x_inc = x_op;
+    const y_inc = y_op * Math.cos(planet.inc);
+    const z_inc = y_op * Math.sin(planet.inc);
+    const cosO = Math.cos(planet.Omega), sinO = Math.sin(planet.Omega);
+    return {
+      x_AU: x_inc * cosO - y_inc * sinO,
+      y_AU: z_inc,
+      z_AU: x_inc * sinO + y_inc * cosO,
+      r_AU,
+      nu_rad: nu
+    };
   }
 };
 
@@ -662,14 +780,64 @@ function validateTransferSolver() {
 // ====================================================================
 
 /** Look up celestial data by name from MODULE B PLANETS array */
+
 function getPlanet(name) {
   return PLANETS.find(p => p.name === name) || null;
+}
+
+// Local Kepler helper for ColonyEngine.findLaunchWindow (kept INSIDE the
+// function-getPlanet → const-RocketEngine slice range so the test harnesses
+// that marker-extract sibling slices include it; mirrors `keplerTrueProperties`
+// above — same math).
+function keplerTruePropertiesLocal(p, simElapsedSec) {
+  if (!p) return { x_AU:0, y_AU:0, z_AU:0, r_AU:0, nu_rad:0, E_rad:0, trueEclipticLongitude:0 };
+  const dir = (p.retrograde ? -1 : 1);
+  const M = ((p.initAngle + dir * p.omega * simElapsedSec) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+  const E = solveKepler(M, p.e);
+  const nu = trueAnomaly(E, p.e);
+  const r_AU = p.a_AU * (1 - p.e * Math.cos(E));
+  const x_local = r_AU * Math.cos(nu);
+  const y_local = r_AU * Math.sin(nu);
+  const x_op = x_local * Math.cos(p.omega_p) - y_local * Math.sin(p.omega_p);
+  const y_op = x_local * Math.sin(p.omega_p) + y_local * Math.cos(p.omega_p);
+  const y_inc = y_op * Math.cos(p.inc);
+  const z_inc = y_op * Math.sin(p.inc);
+  const cosO = Math.cos(p.Omega), sinO = Math.sin(p.Omega);
+  const Xe = x_op * cosO - y_inc * sinO;
+  const Ye = x_op * sinO + y_inc * cosO;
+  const Ze = z_inc;
+  return { x_AU:Xe, y_AU:Ze, z_AU:Ye, r_AU, nu_rad:nu, E_rad:E, trueEclipticLongitude: Math.atan2(Ye, Xe) % (2*Math.PI) };
 }
 
 
 const COLONY_RULES = {BUILD_THRESHOLD:5,SUPPLY_TO_SPAWN:3,ERA_LAUNCH_GAP:{1950:4,1975:2,2000:0.8,2050:0.3,2150:0.1,2300:0.05},MAX_INSTALLATIONS_PER_BODY:4,ELIGIBLE_TARGET_BODIES:["moon","mars","venus","jupiter","saturn"]};
 function getLaunchGap(y){var k=Object.keys(COLONY_RULES.ERA_LAUNCH_GAP).map(Number).sort((a,b)=>a-b);if(y<=k[0])return COLONY_RULES.ERA_LAUNCH_GAP[k[0]];if(y>=k[k.length-1])return COLONY_RULES.ERA_LAUNCH_GAP[k[k.length-1]];for(var i=0;i<k.length-1;i++){if(y>=k[i]&&y<k[i+1]){var t=(y-k[i])/(k[i+1]-k[i]);return COLONY_RULES.ERA_LAUNCH_GAP[k[i]]+t*(COLONY_RULES.ERA_LAUNCH_GAP[k[i+1]]-COLONY_RULES.ERA_LAUNCH_GAP[k[i]])}}return 1}
-const ColonyEngine={timeline:null,generate:function(s,f,t){var r=SeedEngine.stream(s,"colony");this.timeline={missions:[],installations:[]};var cu=f,mi=0;while(cu<t){var d=this.decideNextLaunch(cu,r);var p=this.findLaunchWindow(d.origin,d.destination,cu);if(!p){cu+=0.5;continue}var m={id:"colony-"+(mi++),kind:d.kind,origin:d.origin,destination:d.destination,launchTime:p.launchTime,arrivalTime:p.arrivalTime,returnTime:null,phasePath:p.phasePath,contributesTo:d.contributesTo,mesh:null,trail:null,ghostEllipse:null,trailPositions:[],state:"PENDING",launchYear:p.launchTime,originPlanet:d.origin.id,targetPlanet:d.destination.id,originPlanetRef:null,destPlanetRef:null,parkingRadiusScene:0,parkingRadiusAU:0,orbitStartSimSec:0};this.timeline.missions.push(m);this.recordArrivalEffects(m,p.arrivalTime);var g=getLaunchGap(cu);cu=Math.max(cu+0.1,p.launchTime+g*(0.5+r()*0.5))}return this.timeline},decideNextLaunch:function(cu,r){var ai=this.timeline.installations.filter(function(i){return i.active&&i.builtTime<=cu});var ro=r();var b=COLONY_RULES.ELIGIBLE_TARGET_BODIES;var ta=b[Math.floor(r()*b.length)];if(ai.length===0||ro<0.6){return{kind:"probe",origin:{type:"planet",id:"earth"},destination:{type:"planet",id:ta},contributesTo:"inst-"+ta+"-"+this.timeline.installations.filter(function(i){return i.body&&i.body.id===ta}).length}}else if(ro<0.85){var fr=ai[Math.floor(r()*ai.length)];return{kind:"supply",origin:fr.body,destination:{type:"planet",id:ta},contributesTo:"inst-"+ta+"-"+this.timeline.installations.filter(function(i){return i.body&&i.body.id===ta}).length}}else{var fr=ai[Math.floor(r()*ai.length)];return{kind:"crew",origin:fr.body,destination:{type:"planet",id:ta},contributesTo:"inst-"+ta+"-"+this.timeline.installations.filter(function(i){return i.body&&i.body.id===ta}).length}}},findLaunchWindow:function(o,d,cu){var oi=o.id.toLowerCase(),di=d.id.toLowerCase(),od=PLANET_BY_NAME[oi],dd=PLANET_BY_NAME[di];if(!od&&oi==='moon')od=PLANET_BY_NAME['earth'];if(!dd&&di==='moon')dd=PLANET_BY_NAME['earth'];if(!od||!dd)return null;if(od===dd)return{launchTime:cu,arrivalTime:cu+0.0082,phasePath:{waypoints:[{x:od.a_AU,y:0}]}};var tr=computeHohmannTransfer(od.a_AU,dd.a_AU,MU_SUN),tt=tr.t_transfer_years,pi=computePhaseAngle(od.a_AU,dd.a_AU,od.period_years,dd.period_years,MU_SUN),rp=((pi.phaseAngle_rad%(2*Math.PI))+2*Math.PI)%(2*Math.PI),oa=od.initAngle+2*Math.PI*cu/od.period_years,da=dd.initAngle+2*Math.PI*cu/dd.period_years,cp=((da-oa)%(2*Math.PI)+2*Math.PI)%(2*Math.PI),wo=2*Math.PI/od.period_years,wd=2*Math.PI/dd.period_years,pr=wd-wo,ns=((rp-cp)%(2*Math.PI)+2*Math.PI)%(2*Math.PI),wy=Math.abs(pr)<1e-12?0:(ns/pr)<0?ns/pr+2*Math.PI/Math.abs(pr):ns/pr,lt=cu+wy,at=lt+tt,depA=od.initAngle+2*Math.PI*lt/od.period_years,wp=[],np=20;for(var i=0;i<=np;i++){var t=i/np*tt,ps=positionOnTransferEllipse(t,tt,tr.a_AU,tr.e,depA,od.a_AU>dd.a_AU);wp.push({x:ps.x_AU,y:ps.y_AU})}return{launchTime:lt,arrivalTime:at,phasePath:{waypoints:wp}}},recordArrivalEffects:function(m,at){if(!m.contributesTo)return;var ix=this.timeline.installations.find(function(x){return x.id===m.contributesTo});if(!ix){ix={id:m.contributesTo,type:"station",body:m.destination,slotIndex:0,builtTime:at,arrivalsCounted:0,supplyArrivalsSinceLastSpawn:0,active:false};this.timeline.installations.push(ix)}if(m.kind==="supply")ix.supplyArrivalsSinceLastSpawn++;else ix.arrivalsCounted++;if(ix.arrivalsCounted>=COLONY_RULES.BUILD_THRESHOLD)ix.active=true},getActiveMissions:function(y){return this.timeline?this.timeline.missions.filter(function(m){return m.launchTime<=y&&m.arrivalTime>=y}):[]},getActiveInstallations:function(y){return this.timeline?this.timeline.installations.filter(function(i){return i.builtTime<=y}):[]}};
+const ColonyEngine={timeline:null,generate:function(s,f,t){var r=SeedEngine.stream(s,"colony");this.timeline={missions:[],installations:[]};var cu=f,mi=0;while(cu<t){var d=this.decideNextLaunch(cu,r);var p=this.findLaunchWindow(d.origin,d.destination,cu);if(!p){cu+=0.5;continue}var m={id:"colony-"+(mi++),kind:d.kind,origin:d.origin,destination:d.destination,launchTime:p.launchTime,arrivalTime:p.arrivalTime,returnTime:null,phasePath:p.phasePath,contributesTo:d.contributesTo,mesh:null,trail:null,ghostEllipse:null,trailPositions:[],state:"PENDING",launchYear:p.launchTime,originPlanet:d.origin.id,targetPlanet:d.destination.id,originPlanetRef:null,destPlanetRef:null,parkingRadiusScene:0,parkingRadiusAU:0,orbitStartSimSec:0};this.timeline.missions.push(m);this.recordArrivalEffects(m,p.arrivalTime);var g=getLaunchGap(cu);cu=Math.max(cu+0.1,p.launchTime+g*(0.5+r()*0.5))}return this.timeline},decideNextLaunch:function(cu,r){var ai=this.timeline.installations.filter(function(i){return i.active&&i.builtTime<=cu});var ro=r();var b=COLONY_RULES.ELIGIBLE_TARGET_BODIES;var ta=b[Math.floor(r()*b.length)];if(ai.length===0||ro<0.6){return{kind:"probe",origin:{type:"planet",id:"earth"},destination:{type:"planet",id:ta},contributesTo:"inst-"+ta+"-"+this.timeline.installations.filter(function(i){return i.body&&i.body.id===ta}).length}}else if(ro<0.85){var fr=ai[Math.floor(r()*ai.length)];return{kind:"supply",origin:fr.body,destination:{type:"planet",id:ta},contributesTo:"inst-"+ta+"-"+this.timeline.installations.filter(function(i){return i.body&&i.body.id===ta}).length}}else{var fr=ai[Math.floor(r()*ai.length)];return{kind:"crew",origin:fr.body,destination:{type:"planet",id:ta},contributesTo:"inst-"+ta+"-"+this.timeline.installations.filter(function(i){return i.body&&i.body.id===ta}).length}}},findLaunchWindow: function(o, d, cu) {
+    var oi = o.id.toLowerCase(), di = d.id.toLowerCase(), od = PLANET_BY_NAME[oi], dd = PLANET_BY_NAME[di];
+    if (!od && oi === 'moon') od = PLANET_BY_NAME['earth'];
+    if (!dd && di === 'moon') dd = PLANET_BY_NAME['earth'];
+    if (!od || !dd) return null;
+    if (od === dd) return { launchTime: cu, arrivalTime: cu + 0.0082, phasePath: { waypoints: [{ x: od.a_AU, y: 0 }] } };
+    var tr = computeHohmannTransfer(od.a_AU, dd.a_AU, MU_SUN), tt = tr.t_transfer_years,
+        pi = computePhaseAngle(od.a_AU, dd.a_AU, od.period_years, dd.period_years, MU_SUN),
+        rp = ((pi.phaseAngle_rad % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI),
+        oa = od.initAngle + 2 * Math.PI * cu / od.period_years,
+        da = dd.initAngle + 2 * Math.PI * cu / dd.period_years,
+        cp = ((da - oa) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI),
+        woReq = 2 * Math.PI / od.period_years, wdReq = 2 * Math.PI / dd.period_years,
+        pr = wdReq - woReq,
+        ns = ((rp - cp) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI),
+        wy = Math.abs(pr) < 1e-12 ? 0 : (ns/pr < 0 ? ns/pr + 2*Math.PI/Math.abs(pr) : ns/pr),
+        lt = cu + wy, at = lt + tt,
+        depA = od.initAngle + 2 * Math.PI * lt / od.period_years,
+        wp = [], np = 20;
+    for (var ci = 0; ci <= np; ci++) {
+      var t = (ci / np) * tt;
+      var ps = positionOnTransferEllipse(t, tt, tr.a_AU, tr.e, depA, od.a_AU > dd.a_AU);
+      wp.push({ x: ps.x_AU, y: ps.y_AU });
+    }
+    return { launchTime: lt, arrivalTime: at, phasePath: { waypoints: wp } };
+  },recordArrivalEffects:function(m,at){if(!m.contributesTo)return;var ix=this.timeline.installations.find(function(x){return x.id===m.contributesTo});if(!ix){ix={id:m.contributesTo,type:"station",body:m.destination,slotIndex:0,builtTime:at,arrivalsCounted:0,supplyArrivalsSinceLastSpawn:0,active:false};this.timeline.installations.push(ix)}if(m.kind==="supply")ix.supplyArrivalsSinceLastSpawn++;else ix.arrivalsCounted++;if(ix.arrivalsCounted>=COLONY_RULES.BUILD_THRESHOLD)ix.active=true},getActiveMissions:function(y){return this.timeline?this.timeline.missions.filter(function(m){return m.launchTime<=y&&m.arrivalTime>=y}):[]},getActiveInstallations:function(y){return this.timeline?this.timeline.installations.filter(function(i){return i.builtTime<=y}):[]}};
 ColonyEngine.generate(seedWord, 1970, 2050);
 // ColonyEngine missions will be loaded in RocketEngine.generateMissions()
 
@@ -1376,21 +1544,23 @@ const orbitLines = [];
 
 // ─── Create orbit paths ──────────────────────────────────────
 PLANET_DATA.forEach(data => {
+  const catalog = PLANET_CATALOG[data.index];
   const points = [];
-  const segments = 64;
+  const segments = 256;   // more segments: elliptical outlines look smoother at inclinations
   for (let i = 0; i <= segments; i++) {
-    const angle = (i / segments) * Math.PI * 2;
+    const nu = (i / segments) * Math.PI * 2;
+    const p = OrbitSolver.getOrbitPointAU(catalog, nu);
     points.push(new THREE.Vector3(
-      Math.cos(angle) * data.orbitRadius,
-      0,
-      Math.sin(angle) * data.orbitRadius
+      p.x_AU * AU_TO_SCENE,
+      p.y_AU * AU_TO_SCENE,    // out-of-ecliptic — was 0 when inc=0
+      p.z_AU * AU_TO_SCENE
     ));
   }
   const geo = new THREE.BufferGeometry().setFromPoints(points);
   const mat = new THREE.LineBasicMaterial({
     color: data.color,
     transparent: true,
-    opacity: 0.06,
+    opacity: 0.10,   // slightly more visible: inclined ellipses are visually subtle
     depthWrite: false,
   });
   const line = new THREE.Line(geo, mat);
@@ -1507,10 +1677,17 @@ PLANET_DATA.forEach((data, index) => {
     group.add(moonGroup);
   }
 
-  // Position (deterministic initAngle from PLANET_CATALOG — the single source of truth)
   const startAngle = PLANET_CATALOG[index].initAngle;
-  group.position.x = Math.cos(startAngle) * data.orbitRadius;
-  group.position.z = Math.sin(startAngle) * data.orbitRadius;
+  // Position at sim t=0 (Keplerian — solves Kepler's equation for the
+  // initial mean anomaly initAngle). The planet's initial true coordinates
+  // account for its real eccentricity, argument-of-perihelion, inclination,
+  // and ascending-node longitude (see OrbitSolver.getOrbitPointAU).
+  // For a circular orbit (e=0, inc=0) this collapses to cos/sin × orbitRadius,
+  // matching the previous behaviour.
+  const initPos = OrbitSolver.getPlanetPosition({ data: PLANET_CATALOG[index], ...PLANET_CATALOG[index] }, 0);
+  group.position.x = initPos.x;
+  group.position.y = initPos.y;
+  group.position.z = initPos.z;
   
   scene.add(group);
 
@@ -1758,10 +1935,12 @@ function animate(timestamp) {
   // Update planets from TimeKeeper time
   const simElapsedSec = TimeKeeper.getSimElapsedSec();
   planets.forEach(p => {
-    // Use OrbitSolver to compute position from simulation time
+    // Use OrbitSolver to compute position from simulation time (Keplerian
+    // — true positions + out-of-ecliptic y when inclination is non-zero).
     const pos = OrbitSolver.getPlanetPosition(p, simElapsedSec);
     const dir = p.data.retrograde ? -1 : 1;
     p.group.position.x = pos.x;
+    p.group.position.y = pos.y;
     p.group.position.z = pos.z;
     
     // Axial rotation
